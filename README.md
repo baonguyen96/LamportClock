@@ -7,11 +7,23 @@ Hello World
 ## Requirements
 
 1. Java 13
-2. JDK1.8
-3. JRE
+2. JDK 13
+3. JRE 1.8
 4. Windows 10 and Ubuntu LTS 18.4 (tested)
 
 ## How to run
+
+### Build
+
+1. Go to [Utility](./Utility), [Server](./Server) and [Client](./Client) directory **in that order**
+
+2. In each directory, run the following command:
+```
+mvn clean install -U
+mvn package
+```
+
+### Run
 
 Instructions here
 

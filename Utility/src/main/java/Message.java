@@ -1,12 +1,13 @@
-import java.util.Arrays;
 import java.util.StringTokenizer;
 
-public class Message {
+public class Message implements Comparable<Message> {
 
     public enum MessageType {
         WriteAcquireRequest,
         WriteAcquireResponse,
-        WriteReleaseRequest
+        WriteSyncRequest,
+        WriteReleaseRequest,
+        WriteComplete
     }
 
     private String senderName;
@@ -48,6 +49,19 @@ public class Message {
 
     public String getPayload() {
         return payload;
+    }
+
+    public String getFileNameFromPayload() {
+        return payload.split("|")[0];
+    }
+
+    public String getDataFromPayload() {
+        return payload.substring(payload.indexOf('|'));
+    }
+
+    @Override
+    public int compareTo(Message o) {
+        return Integer.compare(this.timeStamp, o.timeStamp);
     }
 
     @Override
