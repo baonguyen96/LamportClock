@@ -96,7 +96,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 incrementLocalTime();
 
-                System.out.println(receivedMessageString);
+                System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
                 var receivedMessage = new Message(receivedMessageString);
 
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
@@ -135,7 +135,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 incrementLocalTime();
 
-                System.out.println(receivedMessageString);
+                System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
                 var receivedMessage = new Message(receivedMessageString);
 
                 setLocalTime(receivedMessage.getTimeStamp());
@@ -167,6 +167,8 @@ public class ServerNode {
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
+        System.out.printf("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort());
+
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
     }
@@ -190,8 +192,11 @@ public class ServerNode {
 
     private void processCriticalSession(Message message) throws InterruptedException, IOException {
         while(!isLocalWriteRequestFirstInQueue()) {
+            System.out.println("Waiting for critical session access...");
             Thread.sleep(100);
         }
+
+        System.out.println("Going into critical session access...");
 
         var fileName = message.getFileNameFromPayload();
         var lineToAppend = message.getDataFromPayload();
@@ -206,9 +211,13 @@ public class ServerNode {
         }
 
         // currently assume no failure
+
+        System.out.println("Going out of critical session access...");
     }
 
     private void appendToFile(String fileName, String message) throws IOException {
+        System.out.printf("Appending '%s' to file '%s'\n", message, fileName);
+
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
         FileWriter fileWriter = new FileWriter(String.valueOf(filePath), true);
         PrintWriter printWriter = new PrintWriter(fileWriter);
