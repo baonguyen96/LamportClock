@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Hello World
+Implementation of Lamport's clock. Assume no transport failure.
 
 ## Requirements
 

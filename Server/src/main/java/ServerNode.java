@@ -1,5 +1,4 @@
 import java.io.*;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -13,7 +12,6 @@ public class ServerNode {
     private int localTime;
     private ArrayList<String> serverNodes;
     private Hashtable<String, Socket> serverSockets;
-    private Hashtable<String, Boolean> acquiredLockServerSockets;
     private Hashtable<String, Socket> clientSockets;
     private String name;
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
@@ -26,7 +24,6 @@ public class ServerNode {
         this.name = name;
         serverNodes = ipsAndPorts;
         serverSockets = new Hashtable<>();
-        acquiredLockServerSockets = new Hashtable<>();
         commandsQueue = new PriorityQueue<>();
         clientSockets = new Hashtable<>();
         this.directoryPath = directoryPath;
@@ -94,19 +91,23 @@ public class ServerNode {
         while (communicationOn) {
             try {
                 var receivedMessageString = dis.readUTF();
-                incrementLocalTime();
 
                 System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
+
                 var receivedMessage = new Message(receivedMessageString);
+
+                incrementLocalTime();
+                setLocalTime(receivedMessage.getTimeStamp());
 
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
                     commandsQueue.add(receivedMessage);
-                    setLocalTime(receivedMessage.getTimeStamp());
 
                     var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, "");
                     sendMessage(socket, responseMessage.toString());
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteReleaseRequest) {
+                    // assume a server only triggers a single write acquire request at a time
+                    // since if it wants to monopolize the critical session it can just prolong its occupation on the session instead
                     commandsQueue.removeIf(m -> m.getType() == Message.MessageType.WriteAcquireRequest && m.getSenderName().equals(receivedMessage.getSenderName()));
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteSyncRequest) {
@@ -115,7 +116,7 @@ public class ServerNode {
                     appendToFile(fileName, lineToAppend);
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteAcquireResponse) {
-                    acquiredLockServerSockets.put(name, false);
+                    commandsQueue.add(receivedMessage);
                 }
             }
             catch (Exception e) {
@@ -136,24 +137,31 @@ public class ServerNode {
                 incrementLocalTime();
 
                 System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
-                var receivedMessage = new Message(receivedMessageString);
 
+                var receivedMessage = new Message(receivedMessageString);
                 setLocalTime(receivedMessage.getTimeStamp());
 
                 var writeRequestMessage = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, "");
-                for(var serverName : serverSockets.keySet()) {
+                for (var serverName : serverSockets.keySet()) {
                     var serverSocket = serverSockets.get(serverName);
                     sendMessage(serverSocket, writeRequestMessage.toString());
-                    acquiredLockServerSockets.put(serverName, false);
                 }
 
+                var writeRequestedTime = localTime;
+
                 // wait until all confirmed to be proceeding
-                while(!isAllConfirmToAllowEnterCriticalSession()) {
+                while (!isAllConfirmToAllowEnterCriticalSession(writeRequestedTime)) {
                     Thread.sleep(100);
                 }
 
                 // enter critical session if my write request is the first in the queue
                 processCriticalSession(receivedMessage);
+
+                var writeReleaseMessage = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
+                for (var serverName : serverSockets.keySet()) {
+                    var serverSocket = serverSockets.get(serverName);
+                    sendMessage(serverSocket, writeReleaseMessage.toString());
+                }
 
                 var responseMessage = new Message(this.name, Message.MessageType.WriteComplete, localTime, "");
                 sendMessage(socket, responseMessage.toString());
@@ -186,12 +194,19 @@ public class ServerNode {
         return top != null && top.getSenderName().equals(this.name);
     }
 
-    private synchronized boolean isAllConfirmToAllowEnterCriticalSession() {
-        return acquiredLockServerSockets.values().stream().allMatch(allow -> allow);
+    // this is expensive if a lot of messages waiting in the queue
+    private synchronized boolean isAllConfirmToAllowEnterCriticalSession(int writeRequestedTime) {
+        var allSendersAfterWriteRequest = commandsQueue
+                .stream()
+                .filter(message -> message.getTimeStamp() > writeRequestedTime)
+                .map(Message::getSenderName)
+                .distinct();
+
+        return allSendersAfterWriteRequest.count() == serverSockets.size();
     }
 
-    private void processCriticalSession(Message message) throws InterruptedException, IOException {
-        while(!isLocalWriteRequestFirstInQueue()) {
+    private synchronized void processCriticalSession(Message message) throws InterruptedException, IOException {
+        while (!isLocalWriteRequestFirstInQueue()) {
             System.out.println("Waiting for critical session access...");
             Thread.sleep(100);
         }
@@ -215,7 +230,7 @@ public class ServerNode {
         System.out.println("Going out of critical session access...");
     }
 
-    private void appendToFile(String fileName, String message) throws IOException {
+    private synchronized void appendToFile(String fileName, String message) throws IOException {
         System.out.printf("Appending '%s' to file '%s'\n", message, fileName);
 
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
