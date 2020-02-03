@@ -29,4 +29,4 @@ Instructions here
 
 ## Correctness
 
-Based on the description, the client can execute at most a single request and then waits for a response. This implies that the client is synchronized with the servers by default. As long as the servers are correctly synchronized, we will not have issues with the clients. 
+Based on the description, the client can execute at most a single request at a time and then waits for a response. This implies that the client is synchronized with the servers via a pair of messages by default. As long as the servers are correctly synchronized, we will not have issues with the clients. 
