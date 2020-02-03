@@ -62,7 +62,13 @@ public class Message implements Comparable<Message> {
 
     @Override
     public int compareTo(Message o) {
-        return Integer.compare(this.timeStamp, o.timeStamp);
+        var result = Integer.compare(this.timeStamp, o.timeStamp);
+
+        if(result == 0) {
+            result = this.senderName.compareTo(o.senderName);
+        }
+
+        return result;
     }
 
     @Override

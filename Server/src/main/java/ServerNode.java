@@ -91,13 +91,12 @@ public class ServerNode {
         while (communicationOn) {
             try {
                 var receivedMessageString = dis.readUTF();
+                var receivedMessage = new Message(receivedMessageString);
 
                 System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
 
-                var receivedMessage = new Message(receivedMessageString);
-
-                incrementLocalTime();
                 setLocalTime(receivedMessage.getTimeStamp());
+                incrementLocalTime();
 
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
                     commandsQueue.add(receivedMessage);
@@ -134,12 +133,12 @@ public class ServerNode {
         while (communicationOn) {
             try {
                 var receivedMessageString = dis.readUTF();
-                incrementLocalTime();
+                var receivedMessage = new Message(receivedMessageString);
 
                 System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
 
-                var receivedMessage = new Message(receivedMessageString);
                 setLocalTime(receivedMessage.getTimeStamp());
+                incrementLocalTime();
 
                 var writeRequestMessage = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, "");
                 for (var serverName : serverSockets.keySet()) {

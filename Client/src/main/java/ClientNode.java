@@ -3,7 +3,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.StringTokenizer;
@@ -37,10 +36,10 @@ public class ClientNode {
 
     private void requestWrite(String server, String messagePayload) throws IOException {
         var socket = serverSockets.get(server);
+        var message = new Message(this.name, Message.MessageType.ClientWriteRequest, localTime, messagePayload);
 
         incrementLocalTime();
 
-        var message = new Message(this.name, Message.MessageType.ClientWriteRequest, localTime, messagePayload);
         sendMessage(socket, message.toString());
 
         var dis = new DataInputStream(socket.getInputStream());
@@ -48,8 +47,8 @@ public class ClientNode {
         var responseMessage = new Message(responseMessageText);
         System.out.printf("Receiving '%s' from (%s:%d)\n", responseMessageText, socket.getInetAddress(), socket.getPort());
 
-        incrementLocalTime();
         setLocalTime(responseMessage.getTimeStamp());
+        incrementLocalTime();
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
