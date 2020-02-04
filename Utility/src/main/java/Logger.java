@@ -6,6 +6,6 @@ public class Logger {
 
     public static void log(String message) {
         var now = new Date(System.currentTimeMillis());
-        System.out.print(String.format("%s %s\n", dateTimeFormat.format(now), message));
+        System.out.print(String.format("%s - %s\n", dateTimeFormat.format(now), message));
     }
 }

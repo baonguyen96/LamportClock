@@ -35,8 +35,8 @@ public class ClientNode {
         var random = new Random();
         String message;
 
-        // single write for now, but will put in loop and random wait time later
-        for(var i = 0; i < 10; i++) {
+        // todo: random file
+        for(var i = 0; i < 20; i++) {
             message = String.format("File1.txt|(%s) writes line %d", this.name, i);
             requestWrite((String) serverSockets.keySet().toArray()[0], message);
             Thread.sleep(random.nextInt(1000));
