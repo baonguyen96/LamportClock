@@ -8,10 +8,9 @@ public class Client {
         try {
             String name;
             ArrayList<String> servers;
+            var scanner = new Scanner(System.in);
 
             if(args == null || args.length == 0) {
-                var scanner = new Scanner(System.in);
-
                 System.out.print("Name: ");
                 name = scanner.nextLine();
 
@@ -24,8 +23,13 @@ public class Client {
                 servers = Arrays.stream(args).skip(1).collect(Collectors.toCollection(ArrayList::new));
             }
 
-            var clientNode = new ClientNode(name, servers);
-            clientNode.up();
+            System.out.print("Start client [y/n]: ");
+            var startClientConfirmation = scanner.nextLine();
+
+            if(startClientConfirmation.toLowerCase().startsWith("y")) {
+                var clientNode = new ClientNode(name, servers);
+                clientNode.up();
+            }
         }
         catch(Exception e) {
             e.printStackTrace();

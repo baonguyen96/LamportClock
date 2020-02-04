@@ -36,7 +36,7 @@ public class ClientNode {
         String message;
 
         // single write for now, but will put in loop and random wait time later
-        for(var i = 0; i < 100; i++) {
+        for(var i = 0; i < 10; i++) {
             message = String.format("File1.txt|(%s) writes line %d", this.name, i);
             requestWrite((String) serverSockets.keySet().toArray()[0], message);
             Thread.sleep(random.nextInt(1000));
@@ -54,14 +54,14 @@ public class ClientNode {
         var dis = new DataInputStream(socket.getInputStream());
         var responseMessageText = dis.readUTF();
         var responseMessage = new Message(responseMessageText);
-        System.out.printf("Receiving '%s' from (%s:%d)\n", responseMessageText, socket.getInetAddress(), socket.getPort());
+        Logger.log(String.format("Receiving '%s' from (%s:%d)\n", responseMessageText, socket.getInetAddress(), socket.getPort()));
 
         setLocalTime(responseMessage.getTimeStamp());
         incrementLocalTime();
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
-        System.out.printf("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort());
+        Logger.log(String.format("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort()));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);

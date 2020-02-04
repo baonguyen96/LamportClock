@@ -23,6 +23,9 @@ mvn clean install -U
 mvn package
 ```
 
+### Configurations
+
+
 ### Run
 
 Instructions here

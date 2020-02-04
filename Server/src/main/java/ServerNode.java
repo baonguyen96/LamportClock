@@ -12,7 +12,6 @@ public class ServerNode {
     private int localTime;
     private ArrayList<String> serverNodes;
     private Hashtable<String, Socket> serverSockets;
-    private Hashtable<String, Socket> clientSockets;
     private String name;
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
     private PriorityQueue<Message> commandsQueue;
@@ -25,7 +24,6 @@ public class ServerNode {
         serverNodes = ipsAndPorts;
         serverSockets = new Hashtable<>();
         commandsQueue = new PriorityQueue<>();
-        clientSockets = new Hashtable<>();
         this.directoryPath = directoryPath;
     }
 
@@ -49,7 +47,7 @@ public class ServerNode {
             incomingSocket = serverSocket.accept();
             var finalSocket = incomingSocket;
 
-            System.out.println("New request received : " + incomingSocket);
+            Logger.log("New request received : " + incomingSocket);
 
             var name = String.format("%s:%s", incomingSocket.getInetAddress(), incomingSocket.getPort());
 
@@ -68,8 +66,6 @@ public class ServerNode {
                 thread.start();
             }
             else {
-                clientSockets.put(name, incomingSocket);
-
                 var thread = new Thread(() -> {
                     try {
                         handleClientServerCommunication(name, finalSocket);
@@ -93,7 +89,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
+                Logger.log(String.format("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -136,7 +132,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                System.out.printf("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort());
+                Logger.log(String.format("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -176,7 +172,7 @@ public class ServerNode {
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
-        System.out.printf("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort());
+        Logger.log(String.format("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort()));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
@@ -210,11 +206,11 @@ public class ServerNode {
 
         // enter critical session if my write request is the first in the queue
         while (!isLocalWriteRequestFirstInQueue(writeRequestMessage)) {
-            System.out.println("Waiting for critical session access...");
+            Logger.log("Waiting for critical session access...");
             Thread.sleep(100);
         }
 
-        System.out.println("Going into critical session...");
+        Logger.log("Going into critical session...");
 
         var fileName = writeRequestMessage.getFileNameFromPayload();
         var lineToAppend = writeRequestMessage.getDataFromPayload();
@@ -227,11 +223,11 @@ public class ServerNode {
 
         // currently assume no failure
 
-        System.out.println("Going out of critical session access...");
+        Logger.log("Going out of critical session access...");
     }
 
     private synchronized void appendToFile(String fileName, String message) throws IOException {
-        System.out.printf("Appending '%s' to file '%s'\n", message, fileName);
+        Logger.log(String.format("Appending '%s' to file '%s'\n", message, fileName));
 
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
         FileWriter fileWriter = new FileWriter(String.valueOf(filePath), true);
