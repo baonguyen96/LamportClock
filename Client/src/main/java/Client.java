@@ -24,9 +24,9 @@ public class Client {
             }
 
             System.out.print("Start client [y/n]: ");
-            var startClientConfirmation = scanner.nextLine();
+            var confirmation = scanner.nextLine();
 
-            if(startClientConfirmation.toLowerCase().startsWith("y")) {
+            if(confirmation.toLowerCase().startsWith("y")) {
                 var clientNode = new ClientNode(name, servers);
                 clientNode.up();
             }

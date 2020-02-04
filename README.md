@@ -23,10 +23,12 @@ mvn clean install -U
 mvn package
 ```
 
-### Configurations
-
-
 ### Run
+
+1. Start multiple instances of Servers, populate all necessary fields on them as prompted, but DO NOT choose to start any instance until all server instances are ready to be activated
+2. Activate (choose start) all Server instances at the same time
+3. Start multiple instances of Client, populate all necessary fields on them as prompted, but DO NOT choose to start any instance until all server instances are ready to be activated
+2. Activate (choose start) all Client instances at the same time
 
 Instructions here
 

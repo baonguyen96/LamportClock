@@ -9,10 +9,9 @@ public class Server {
             String directoryPath;
             String ipPort;
             ArrayList<String> otherServers;
+            var scanner = new Scanner(System.in);
 
             if(args == null || args.length == 0) {
-                var scanner = new Scanner(System.in);
-
                 System.out.print("Directory: ");
                 directoryPath = scanner.nextLine();
 
@@ -29,8 +28,14 @@ public class Server {
                 otherServers = Arrays.stream(args).skip(1).collect(Collectors.toCollection(ArrayList::new));
             }
 
-            var serverNode = new ServerNode(ipPort, otherServers, directoryPath);
-            serverNode.up();
+            System.out.print("Start server [y/n]: ");
+            var confirmation = scanner.nextLine();
+
+            if(confirmation.toLowerCase().startsWith("y")) {
+                var serverNode = new ServerNode(ipPort, otherServers, directoryPath);
+                serverNode.up();
+            }
+
         }
         catch(Exception e) {
             e.printStackTrace();

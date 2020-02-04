@@ -7,31 +7,83 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.PriorityQueue;
 import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
 
 public class ServerNode {
-    private int localTime;
-    private ArrayList<String> serverNodes;
-    private Hashtable<String, Socket> serverSockets;
-    private String name;
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
-    private PriorityQueue<Message> commandsQueue;
+    private int localTime;
+    private String name;
     private String directoryPath;
+    private PriorityQueue<Message> commandsQueue;
+    private Hashtable<String, Socket> serverSockets;
+    private ArrayList<String> otherServers;
 
-
-    public ServerNode(String name, ArrayList<String> ipsAndPorts, String directoryPath) {
+    public ServerNode(String name, ArrayList<String> otherServers, String directoryPath) throws IOException {
         localTime = 0;
         this.name = name;
-        serverNodes = ipsAndPorts;
         serverSockets = new Hashtable<>();
         commandsQueue = new PriorityQueue<>();
         this.directoryPath = directoryPath;
+        this.otherServers = otherServers;
     }
 
+    public void up() {
+        var listenThread = new Thread(() -> {
+            try {
+                listenForIncomingMessages();
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        listenThread.start();
 
-    public void up() throws IOException {
-        listenForIncomingMessages();
+        var linkToOtherServersThread = new Thread(() -> {
+            try {
+                populateServerSockets(otherServers);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+        linkToOtherServersThread.start();
     }
 
+    private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
+        for(var trial = 0; trial < 5; trial++) {
+            for (var server : servers) {
+                if(serverSockets.containsKey(server)) {
+                    continue;
+                }
+
+                Logger.log(String.format("Trying to connect to (%s)...", server));
+
+                try {
+                    var tokenizer = new StringTokenizer(server, ":");
+                    var serverIp = InetAddress.getByName(tokenizer.nextToken());
+                    var serverPort = Integer.parseInt(tokenizer.nextToken());
+                    var socket = new Socket(serverIp, serverPort);
+                    sendMessage(socket, String.format("Server %s", this.name));
+                    serverSockets.put(server, socket);
+
+                    Logger.log(String.format("Successfully connected to (%s)...", server));
+                }
+                catch(IOException ignored) {
+                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d...", server, trial + 1));
+                }
+            }
+
+            if(serverSockets.keySet().size() == servers.size()) {
+                break;
+            }
+            else {
+                Thread.sleep(500);
+            }
+        }
+
+        var successfulServers = String.join(", ", serverSockets.keySet());
+        Logger.log(String.format("Successfully connect to server(s): (%s)", successfulServers));
+    }
 
     // among servers only for now
     private void listenForIncomingMessages() throws IOException {
@@ -41,22 +93,21 @@ public class ServerNode {
         var serverSocket = new ServerSocket(portNumber, 100, ipAddress);
         Socket incomingSocket;
 
-        System.out.printf("ServerSocket is up and bound to (%s)\n", this.name);
+        Logger.log(String.format("Listening on (%s)...", this.name));
 
         while (true) {
             incomingSocket = serverSocket.accept();
             var finalSocket = incomingSocket;
+            var name = String.format("%s:%s", incomingSocket.getInetAddress(), incomingSocket.getPort());
 
             Logger.log("New request received : " + incomingSocket);
 
-            var name = String.format("%s:%s", incomingSocket.getInetAddress(), incomingSocket.getPort());
-
-            if (serverNodes.contains(name)) {
-                serverSockets.put(name, incomingSocket);
+            if (isServerSocket(finalSocket)) {
+                Logger.log(String.format("Handle server communication with (%s)", name));
 
                 var thread = new Thread(() -> {
                     try {
-                        handleServerServerCommunication(name, finalSocket);
+                        handleServerServerCommunication(finalSocket);
                     }
                     catch (IOException e) {
                         e.printStackTrace();
@@ -66,9 +117,11 @@ public class ServerNode {
                 thread.start();
             }
             else {
+                Logger.log(String.format("Handle client communication with (%s)", name));
+
                 var thread = new Thread(() -> {
                     try {
-                        handleClientServerCommunication(name, finalSocket);
+                        handleClientServerCommunication(finalSocket);
                     }
                     catch (IOException e) {
                         e.printStackTrace();
@@ -80,7 +133,7 @@ public class ServerNode {
         }
     }
 
-    private void handleServerServerCommunication(String name, Socket socket) throws IOException {
+    private void handleServerServerCommunication(Socket socket) throws IOException {
         var communicationOn = true;
         var dis = new DataInputStream(socket.getInputStream());
 
@@ -89,7 +142,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                Logger.log(String.format("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                Logger.log(String.format("Receiving '%s' from server (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -117,13 +170,14 @@ public class ServerNode {
             }
             catch (Exception e) {
                 communicationOn = false;
+                e.printStackTrace();
             }
         }
 
         dis.close();
     }
 
-    private void handleClientServerCommunication(String name, Socket socket) throws IOException {
+    private void handleClientServerCommunication(Socket socket) throws IOException {
         var communicationOn = true;
         var dis = new DataInputStream(socket.getInputStream());
 
@@ -132,33 +186,34 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                Logger.log(String.format("Receiving '%s' from (%s:%d)\n", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                Logger.log(String.format("Receiving '%s' from client (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
 
-                var writeRequestMessage = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
-                commandsQueue.add(writeRequestMessage);
+                var writeAcquireRequest = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
+                commandsQueue.add(writeAcquireRequest);
 
-                for (var serverName : serverSockets.keySet()) {
-                    var serverSocket = serverSockets.get(serverName);
-                    sendMessage(serverSocket, writeRequestMessage.toString());
+                for (Socket serverSocket : serverSockets.values()) {
+                    sendMessage(serverSocket, writeAcquireRequest.toString());
                 }
 
                 var writeRequestedTime = localTime;
 
                 // busy wait until all confirmed to be proceeding
-                while (!isAllConfirmToAllowEnterCriticalSession(writeRequestedTime)) {
-                    Thread.sleep(100);
+//                while (!isAllConfirmToAllowEnterCriticalSession(writeRequestedTime)) {
+//                    TimeUnit.MILLISECONDS.sleep(500);
+//                }
+
+                processCriticalSession(writeAcquireRequest);
+
+                var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
+
+                for (Socket serverSocket : serverSockets.values()) {
+                    sendMessage(serverSocket, writeReleaseRequest.toString());
                 }
 
-                processCriticalSession(writeRequestMessage);
-
-                var writeReleaseMessage = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
-                for (var serverName : serverSockets.keySet()) {
-                    var serverSocket = serverSockets.get(serverName);
-                    sendMessage(serverSocket, writeReleaseMessage.toString());
-                }
+                incrementLocalTime();
 
                 var responseMessage = new Message(this.name, Message.MessageType.WriteComplete, localTime, "");
                 sendMessage(socket, responseMessage.toString());
@@ -171,8 +226,15 @@ public class ServerNode {
         dis.close();
     }
 
+    private boolean isServerSocket(Socket socket) throws IOException {
+        var dis = new DataInputStream(socket.getInputStream());
+        var socketType = dis.readUTF();
+
+        return socketType.toLowerCase().startsWith("server");
+    }
+
     private void sendMessage(Socket socket, String message) throws IOException {
-        Logger.log(String.format("Sending '%s' to '(%s:%d)...'\n", message, socket.getInetAddress(), socket.getPort()));
+        Logger.log(String.format("Sending '%s' to (%s:%d)", message, socket.getInetAddress(), socket.getPort()));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
@@ -210,7 +272,7 @@ public class ServerNode {
             Thread.sleep(100);
         }
 
-        Logger.log("Going into critical session...");
+        Logger.log("Going into critical session");
 
         var fileName = writeRequestMessage.getFileNameFromPayload();
         var lineToAppend = writeRequestMessage.getDataFromPayload();
@@ -223,15 +285,16 @@ public class ServerNode {
 
         // currently assume no failure
 
-        Logger.log("Going out of critical session access...");
+        Logger.log("Going out of critical session access");
     }
 
     private synchronized void appendToFile(String fileName, String message) throws IOException {
-        Logger.log(String.format("Appending '%s' to file '%s'\n", message, fileName));
-
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
-        FileWriter fileWriter = new FileWriter(String.valueOf(filePath), true);
-        PrintWriter printWriter = new PrintWriter(fileWriter);
+
+        Logger.log(String.format("Appending '%s' to file '%s'", message, filePath));
+
+        var fileWriter = new FileWriter(String.valueOf(filePath), true);
+        var printWriter = new PrintWriter(fileWriter);
         printWriter.println(message);
         printWriter.close();
     }
