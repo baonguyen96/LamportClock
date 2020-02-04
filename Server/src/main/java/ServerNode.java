@@ -110,6 +110,7 @@ public class ServerNode {
                     commandsQueue.removeIf(m -> m.getType() == Message.MessageType.WriteAcquireRequest && m.getSenderName().equals(receivedMessage.getSenderName()));
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteSyncRequest) {
+                    // append to file directly since this message type can only occur when 1 and only 1 server process in critical session
                     var fileName = receivedMessage.getFileNameFromPayload();
                     var lineToAppend = receivedMessage.getDataFromPayload();
                     appendToFile(fileName, lineToAppend);
@@ -140,7 +141,9 @@ public class ServerNode {
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
 
-                var writeRequestMessage = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, "");
+                var writeRequestMessage = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
+                commandsQueue.add(writeRequestMessage);
+
                 for (var serverName : serverSockets.keySet()) {
                     var serverSocket = serverSockets.get(serverName);
                     sendMessage(serverSocket, writeRequestMessage.toString());
@@ -148,13 +151,12 @@ public class ServerNode {
 
                 var writeRequestedTime = localTime;
 
-                // wait until all confirmed to be proceeding
+                // busy wait until all confirmed to be proceeding
                 while (!isAllConfirmToAllowEnterCriticalSession(writeRequestedTime)) {
                     Thread.sleep(100);
                 }
 
-                // enter critical session if my write request is the first in the queue
-                processCriticalSession(receivedMessage);
+                processCriticalSession(writeRequestMessage);
 
                 var writeReleaseMessage = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
                 for (var serverName : serverSockets.keySet()) {
@@ -188,7 +190,7 @@ public class ServerNode {
         localTime = Math.max(localTime, messageTimeStamp + TIME_DIFFERENCE_BETWEEN_PROCESSES);
     }
 
-    private synchronized boolean isLocalWriteRequestFirstInQueue() {
+    private synchronized boolean isLocalWriteRequestFirstInQueue(Message message) {
         var top = commandsQueue.peek();
         return top != null && top.getSenderName().equals(this.name);
     }
@@ -204,24 +206,23 @@ public class ServerNode {
         return allSendersAfterWriteRequest.count() == serverSockets.size();
     }
 
-    private synchronized void processCriticalSession(Message message) throws InterruptedException, IOException {
-        while (!isLocalWriteRequestFirstInQueue()) {
+    private synchronized void processCriticalSession(Message writeRequestMessage) throws InterruptedException, IOException {
+
+        // enter critical session if my write request is the first in the queue
+        while (!isLocalWriteRequestFirstInQueue(writeRequestMessage)) {
             System.out.println("Waiting for critical session access...");
             Thread.sleep(100);
         }
 
-        System.out.println("Going into critical session access...");
+        System.out.println("Going into critical session...");
 
-        var fileName = message.getFileNameFromPayload();
-        var lineToAppend = message.getDataFromPayload();
-
+        var fileName = writeRequestMessage.getFileNameFromPayload();
+        var lineToAppend = writeRequestMessage.getDataFromPayload();
         appendToFile(fileName, lineToAppend);
 
-        // ask all other to append
-        var writeSyncMessage = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, lineToAppend);
-
+        var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeRequestMessage.getPayload());
         for (var serverSocket : serverSockets.values()) {
-            sendMessage(serverSocket, writeSyncMessage.toString());
+            sendMessage(serverSocket, writeSyncRequest.toString());
         }
 
         // currently assume no failure

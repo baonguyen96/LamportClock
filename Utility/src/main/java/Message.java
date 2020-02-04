@@ -32,6 +32,10 @@ public class Message implements Comparable<Message> {
         var sb = new StringBuilder();
         while(tokenizer.hasMoreTokens()) {
             sb.append(tokenizer.nextToken());
+
+            if(tokenizer.hasMoreTokens()) {
+                sb.append("|");
+            }
         }
         payload = sb.toString();
     }
@@ -53,11 +57,11 @@ public class Message implements Comparable<Message> {
     }
 
     public String getFileNameFromPayload() {
-        return payload.split("|")[0];
+        return payload.split("\\|")[0];
     }
 
     public String getDataFromPayload() {
-        return payload.substring(payload.indexOf('|'));
+        return payload.substring(payload.indexOf('|') + 1);
     }
 
     @Override

@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.Random;
 import java.util.StringTokenizer;
 
 public class ClientNode {
@@ -30,8 +31,16 @@ public class ClientNode {
         }
     }
 
-    public void up() {
+    public void up() throws IOException, InterruptedException {
+        var random = new Random();
+        String message;
+
         // single write for now, but will put in loop and random wait time later
+        for(var i = 0; i < 100; i++) {
+            message = String.format("File1.txt|(%s) writes line %d", this.name, i);
+            requestWrite((String) serverSockets.keySet().toArray()[0], message);
+            Thread.sleep(random.nextInt(1000));
+        }
     }
 
     private void requestWrite(String server, String messagePayload) throws IOException {

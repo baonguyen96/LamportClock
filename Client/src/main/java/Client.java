@@ -12,7 +12,7 @@ public class Client {
             if(args == null || args.length == 0) {
                 var scanner = new Scanner(System.in);
 
-                System.out.print("Ip and Port (separated by colon): ");
+                System.out.print("Name: ");
                 name = scanner.nextLine();
 
                 System.out.print("Servers ((IP:Port) tuples separated by space): ");
