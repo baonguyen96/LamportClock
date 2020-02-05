@@ -37,8 +37,8 @@ public class ClientNode {
         String message;
 
         for(var i = 0; i < 20; i++) {
-            message = String.format("File1.txt|(%s) writes line %d", this.name, i);
-            requestWrite((String) serverSockets.keySet().toArray()[random.nextInt(serverSockets.size())], message);
+            message = String.format("File%d.txt|(%s) writes line %d", random.nextInt(1) + 1, this.name, i);
+            requestWrite((String) serverSockets.keySet().toArray()[0], message);
             Thread.sleep(random.nextInt(1000));
         }
     }

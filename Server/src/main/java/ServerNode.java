@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.PriorityQueue;
 import java.util.StringTokenizer;
-import java.util.concurrent.TimeUnit;
 
 public class ServerNode {
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
@@ -19,12 +18,15 @@ public class ServerNode {
     private ArrayList<String> otherServers;
 
     public ServerNode(String name, ArrayList<String> otherServers, String directoryPath) throws IOException {
-        localTime = 0;
+        this.localTime = 0;
         this.name = name;
-        serverSockets = new Hashtable<>();
-        commandsQueue = new PriorityQueue<>();
         this.directoryPath = directoryPath;
         this.otherServers = otherServers;
+        this.serverSockets = new Hashtable<>();
+        this.commandsQueue = new PriorityQueue<>();
+
+        Logger.log(String.format("Clean up directory '%s'", directoryPath));
+        FileUtil.truncateAllFilesInDirectory(directoryPath);
     }
 
     public void up() {
