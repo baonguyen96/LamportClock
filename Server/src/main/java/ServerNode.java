@@ -52,6 +52,8 @@ public class ServerNode {
     }
 
     private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
+        var isConnectedToAll = false;
+
         for(var trial = 0; trial < 5; trial++) {
             for (var server : servers) {
                 if(serverSockets.containsKey(server)) {
@@ -68,14 +70,15 @@ public class ServerNode {
                     sendMessage(socket, String.format("Server %s", this.name));
                     serverSockets.put(server, socket);
 
-                    Logger.log(String.format("Successfully connected to (%s)...", server));
+                    Logger.log(String.format("Successfully connected to (%s)", server));
                 }
                 catch(IOException ignored) {
-                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d...", server, trial + 1));
+                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d", server, trial + 1));
                 }
             }
 
             if(serverSockets.keySet().size() == servers.size()) {
+                isConnectedToAll = true;
                 break;
             }
             else {
@@ -84,7 +87,7 @@ public class ServerNode {
         }
 
         var successfulServers = String.join(", ", serverSockets.keySet());
-        Logger.log(String.format("Successfully connect to server(s): (%s)", successfulServers));
+        Logger.log(String.format("Successfully connect to %s server(s): (%s)", (isConnectedToAll ? "all" : serverSockets.size()), successfulServers));
     }
 
     // among servers only for now
@@ -256,6 +259,7 @@ public class ServerNode {
     }
 
     // this is expensive if a lot of messages waiting in the queue
+    @Deprecated
     private synchronized boolean isAllConfirmToAllowEnterCriticalSession(int writeRequestedTime) {
         var allSendersAfterWriteRequest = commandsQueue
                 .stream()
@@ -266,26 +270,25 @@ public class ServerNode {
         return allSendersAfterWriteRequest.count() == serverSockets.size();
     }
 
-    private synchronized void processCriticalSession(Message writeRequestMessage) throws InterruptedException, IOException {
-
+    private synchronized void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
         // enter critical session if my write request is the first in the queue
-        while (!isLocalWriteRequestFirstInQueue(writeRequestMessage)) {
+        while (!isLocalWriteRequestFirstInQueue(writeAcquireRequest)) {
             Logger.log("Waiting for critical session access...");
             Thread.sleep(100);
         }
 
         Logger.log("Going into critical session");
 
-        var fileName = writeRequestMessage.getFileNameFromPayload();
-        var lineToAppend = writeRequestMessage.getDataFromPayload();
+        var fileName = writeAcquireRequest.getFileNameFromPayload();
+        var lineToAppend = writeAcquireRequest.getDataFromPayload();
         appendToFile(fileName, lineToAppend);
 
-        var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeRequestMessage.getPayload());
+        var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
         for (var serverSocket : serverSockets.values()) {
             sendMessage(serverSocket, writeSyncRequest.toString());
         }
 
-        // currently assume no failure
+        commandsQueue.remove(writeAcquireRequest);
 
         Logger.log("Going out of critical session access");
     }

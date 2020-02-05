@@ -35,10 +35,16 @@ public class ClientNode {
     public void up() throws IOException, InterruptedException {
         var random = new Random();
         String message;
+        int fileNumber;
+        int serverNumber;
 
         for(var i = 0; i < 20; i++) {
-            message = String.format("File%d.txt|(%s) writes line %d", random.nextInt(1) + 1, this.name, i);
-            requestWrite((String) serverSockets.keySet().toArray()[0], message);
+            fileNumber = random.nextInt(1) + 1;
+            message = String.format("File%d.txt|(%s) writes line %d", fileNumber, this.name, i);
+
+            serverNumber = random.nextInt(serverSockets.size());
+            requestWrite((String) serverSockets.keySet().toArray()[serverNumber], message);
+
             Thread.sleep(random.nextInt(1000));
         }
     }
