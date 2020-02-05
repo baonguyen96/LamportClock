@@ -39,7 +39,7 @@ public class ClientNode {
         int serverNumber;
 
         for(var i = 0; i < 20; i++) {
-            fileNumber = random.nextInt(1) + 1;
+            fileNumber = random.nextInt(4) + 1;
             message = String.format("File%d.txt|(%s) writes line %d", fileNumber, this.name, i);
 
             serverNumber = random.nextInt(serverSockets.size());
