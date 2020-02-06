@@ -17,19 +17,21 @@ public class Client {
                 System.out.print("Servers ((IP:Port) tuples separated by space): ");
                 var serversInput = scanner.nextLine().split(" ");
                 servers = Arrays.stream(serversInput).collect(Collectors.toCollection(ArrayList::new));
+
+                System.out.print("Start client [y/n]: ");
+                var confirmation = scanner.nextLine();
+
+                if (!confirmation.toLowerCase().startsWith("y")) {
+                    return;
+                }
             }
             else {
                 name = args[0];
                 servers = Arrays.stream(args).skip(1).collect(Collectors.toCollection(ArrayList::new));
             }
 
-            System.out.print("Start client [y/n]: ");
-            var confirmation = scanner.nextLine();
-
-            if(confirmation.toLowerCase().startsWith("y")) {
-                var clientNode = new ClientNode(name, servers);
-                clientNode.up();
-            }
+            var clientNode = new ClientNode(name, servers);
+            clientNode.up();
         }
         catch(Exception e) {
             e.printStackTrace();
