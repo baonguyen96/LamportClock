@@ -52,14 +52,14 @@ public class ServerNode {
     }
 
     private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
-        if(servers == null || servers.size() == 0 || (servers.size() == 1 && servers.get(0).isEmpty())) {
+        if (servers == null || servers.size() == 0 || (servers.size() == 1 && servers.get(0).isEmpty())) {
             Logger.log("No servers found to connect to");
             return;
         }
 
-        for(var trial = 0; trial < 5; trial++) {
+        for (var trial = 0; trial < 5; trial++) {
             for (var server : servers) {
-                if(serverSockets.containsKey(server)) {
+                if (serverSockets.containsKey(server)) {
                     continue;
                 }
 
@@ -75,12 +75,12 @@ public class ServerNode {
 
                     Logger.log(String.format("Successfully connected to (%s)", server));
                 }
-                catch(IOException ignored) {
+                catch (IOException ignored) {
                     Logger.log(String.format("Error trying to connect to (%s) - attempt %d", server, trial + 1));
                 }
             }
 
-            if(serverSockets.keySet().size() == servers.size()) {
+            if (serverSockets.keySet().size() == servers.size()) {
                 break;
             }
             else {
@@ -88,10 +88,10 @@ public class ServerNode {
             }
         }
 
-        if(serverSockets.size() == 0) {
+        if (serverSockets.size() == 0) {
             Logger.log("Cannot connect to any other servers");
         }
-        else if(serverSockets.size() < servers.size()) {
+        else if (serverSockets.size() < servers.size()) {
             var successfulServers = String.join(", ", serverSockets.keySet());
             Logger.log(String.format("Successfully connect to %s server(s): (%s)", serverSockets.size(), successfulServers));
         }
@@ -206,31 +206,34 @@ public class ServerNode {
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
 
-                var writeAcquireRequest = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
-                commandsQueue.add(writeAcquireRequest);
+                var fileName = receivedMessage.getFileNameFromPayload();
+                var fullPath = Paths.get(directoryPath, fileName).toAbsolutePath();
+                Message responseMessage;
 
-                for (Socket serverSocket : serverSockets.values()) {
-                    sendMessage(serverSocket, writeAcquireRequest.toString());
+                if (FileUtil.exists(String.valueOf(fullPath))) {
+                    var writeAcquireRequest = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
+                    commandsQueue.add(writeAcquireRequest);
+
+                    for (Socket serverSocket : serverSockets.values()) {
+                        sendMessage(serverSocket, writeAcquireRequest.toString());
+                    }
+
+                    processCriticalSession(writeAcquireRequest);
+
+                    var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
+
+                    for (Socket serverSocket : serverSockets.values()) {
+                        sendMessage(serverSocket, writeReleaseRequest.toString());
+                    }
+
+                    responseMessage = new Message(this.name, Message.MessageType.WriteCompleteResponse, localTime, "");
                 }
-
-                var writeRequestedTime = localTime;
-
-                // busy wait until all confirmed to be proceeding
-//                while (!isAllConfirmToAllowEnterCriticalSession(writeRequestedTime)) {
-//                    TimeUnit.MILLISECONDS.sleep(500);
-//                }
-
-                processCriticalSession(writeAcquireRequest);
-
-                var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
-
-                for (Socket serverSocket : serverSockets.values()) {
-                    sendMessage(serverSocket, writeReleaseRequest.toString());
+                else {
+                    responseMessage = new Message(this.name, Message.MessageType.WriteFailureResponse, localTime, "");
                 }
 
                 incrementLocalTime();
 
-                var responseMessage = new Message(this.name, Message.MessageType.WriteComplete, localTime, "");
                 sendMessage(socket, responseMessage.toString());
             }
             catch (Exception e) {
@@ -293,6 +296,7 @@ public class ServerNode {
 
         var fileName = writeAcquireRequest.getFileNameFromPayload();
         var lineToAppend = writeAcquireRequest.getDataFromPayload();
+
         appendToFile(fileName, lineToAppend);
 
         var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
@@ -310,9 +314,6 @@ public class ServerNode {
 
         Logger.log(String.format("Appending '%s' to file '%s'", message, filePath));
 
-        var fileWriter = new FileWriter(String.valueOf(filePath), true);
-        var printWriter = new PrintWriter(fileWriter);
-        printWriter.println(message);
-        printWriter.close();
+        FileUtil.appendToFile(String.valueOf(filePath), message);
     }
 }

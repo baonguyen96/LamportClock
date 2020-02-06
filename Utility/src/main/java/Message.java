@@ -7,8 +7,9 @@ public class Message implements Comparable<Message> {
         WriteAcquireResponse,
         WriteSyncRequest,
         WriteReleaseRequest,
-        WriteComplete,
-        ClientWriteRequest
+        WriteCompleteResponse,
+        WriteFailureResponse,
+        ClientWriteRequest,
     }
 
     private String senderName;

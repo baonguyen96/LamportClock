@@ -1,6 +1,4 @@
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.nio.file.Paths;
 
 public class FileUtil {
@@ -19,5 +17,17 @@ public class FileUtil {
         var writer = new PrintWriter(fileName);
         writer.print("");
         writer.close();
+    }
+
+    public static void appendToFile(String fileName, String line) throws IOException {
+        var fileWriter = new FileWriter(fileName, true);
+        var printWriter = new PrintWriter(fileWriter);
+        printWriter.println(line);
+        printWriter.close();
+    }
+
+    public static boolean exists(String fileName) {
+        var file = new File(fileName);
+        return file.exists();
     }
 }
