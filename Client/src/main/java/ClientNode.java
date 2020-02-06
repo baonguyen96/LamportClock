@@ -60,6 +60,7 @@ public class ClientNode {
         var dis = new DataInputStream(socket.getInputStream());
         var responseMessageText = dis.readUTF();
         var responseMessage = new Message(responseMessageText);
+
         Logger.log(String.format("Receiving '%s' from (%s:%d)", responseMessageText, socket.getInetAddress(), socket.getPort()));
 
         setLocalTime(responseMessage.getTimeStamp());

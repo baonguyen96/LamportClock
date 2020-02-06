@@ -100,7 +100,6 @@ public class ServerNode {
         }
     }
 
-    // among servers only for now
     private void listenForIncomingMessages() throws IOException {
         var tokenizer = new StringTokenizer(this.name, ":");
         var ipAddress = InetAddress.getByName(tokenizer.nextToken());
@@ -271,22 +270,9 @@ public class ServerNode {
         return top != null && top.getSenderName().equals(this.name);
     }
 
-    // this is expensive if a lot of messages waiting in the queue
-    @Deprecated
-    private synchronized boolean isAllConfirmToAllowEnterCriticalSession(int writeRequestedTime) {
-        var allSendersAfterWriteRequest = commandsQueue
-                .stream()
-                .filter(message -> message.getTimeStamp() > writeRequestedTime)
-                .map(Message::getSenderName)
-                .distinct();
-
-        return allSendersAfterWriteRequest.count() == serverSockets.size();
-    }
-
     private synchronized void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
         Logger.log("Checking allowance to proceed to critical session...");
 
-        // enter critical session if my write request is the first in the queue
         while (!isLocalWriteRequestFirstInQueue(writeAcquireRequest)) {
             Logger.log("Waiting for critical session access...");
             Thread.sleep(100);
