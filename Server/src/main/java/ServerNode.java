@@ -52,7 +52,10 @@ public class ServerNode {
     }
 
     private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
-        var isConnectedToAll = false;
+        if(servers == null || servers.size() == 0 || (servers.size() == 1 && servers.get(0).isEmpty())) {
+            Logger.log("No servers found to connect to");
+            return;
+        }
 
         for(var trial = 0; trial < 5; trial++) {
             for (var server : servers) {
@@ -78,7 +81,6 @@ public class ServerNode {
             }
 
             if(serverSockets.keySet().size() == servers.size()) {
-                isConnectedToAll = true;
                 break;
             }
             else {
@@ -86,8 +88,16 @@ public class ServerNode {
             }
         }
 
-        var successfulServers = String.join(", ", serverSockets.keySet());
-        Logger.log(String.format("Successfully connect to %s server(s): (%s)", (isConnectedToAll ? "all" : serverSockets.size()), successfulServers));
+        if(serverSockets.size() == 0) {
+            Logger.log("Cannot connect to any other servers");
+        }
+        else if(serverSockets.size() < servers.size()) {
+            var successfulServers = String.join(", ", serverSockets.keySet());
+            Logger.log(String.format("Successfully connect to %s server(s): (%s)", serverSockets.size(), successfulServers));
+        }
+        else {
+            Logger.log("Successfully connect to all server(s)");
+        }
     }
 
     // among servers only for now
@@ -271,13 +281,15 @@ public class ServerNode {
     }
 
     private synchronized void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
+        Logger.log("Checking allowance to proceed to critical session...");
+
         // enter critical session if my write request is the first in the queue
         while (!isLocalWriteRequestFirstInQueue(writeAcquireRequest)) {
             Logger.log("Waiting for critical session access...");
             Thread.sleep(100);
         }
 
-        Logger.log("Going into critical session");
+        Logger.log("Going into critical session...");
 
         var fileName = writeAcquireRequest.getFileNameFromPayload();
         var lineToAppend = writeAcquireRequest.getDataFromPayload();
