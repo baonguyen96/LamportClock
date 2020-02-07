@@ -1,4 +1,6 @@
-import java.io.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -29,10 +31,17 @@ public class ServerNode {
         FileUtil.truncateAllFilesInDirectory(directoryPath);
     }
 
-    public void up() {
+    public void up() throws IOException {
+        Logger.log(String.format("Starting to listen on (%s)...", this.name));
+
+        var tokenizer = new StringTokenizer(this.name, ":");
+        var ipAddress = InetAddress.getByName(tokenizer.nextToken());
+        var portNumber = Integer.parseInt(tokenizer.nextToken());
+        var serverSocket = new ServerSocket(portNumber, 100, ipAddress);
+
         var listenThread = new Thread(() -> {
             try {
-                listenForIncomingMessages();
+                listenForIncomingMessages(serverSocket);
             }
             catch (IOException e) {
                 e.printStackTrace();
@@ -58,25 +67,25 @@ public class ServerNode {
         }
 
         for (var trial = 0; trial < 5; trial++) {
-            for (var server : servers) {
-                if (serverSockets.containsKey(server)) {
+            for (var serverName : servers) {
+                if (serverSockets.containsKey(serverName)) {
                     continue;
                 }
 
-                Logger.log(String.format("Trying to connect to (%s)...", server));
+                Logger.log(String.format("Trying to connect to (%s)...", serverName));
 
                 try {
-                    var tokenizer = new StringTokenizer(server, ":");
+                    var tokenizer = new StringTokenizer(serverName, ":");
                     var serverIp = InetAddress.getByName(tokenizer.nextToken());
                     var serverPort = Integer.parseInt(tokenizer.nextToken());
                     var socket = new Socket(serverIp, serverPort);
-                    sendMessage(socket, String.format("Server %s", this.name));
-                    serverSockets.put(server, socket);
+                    sendMessage(socket, String.format("Server %s", this.name), true);
+                    serverSockets.put(serverName, socket);
 
-                    Logger.log(String.format("Successfully connected to (%s)", server));
+                    Logger.log(String.format("Successfully connected to (%s)", serverName));
                 }
                 catch (IOException ignored) {
-                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d", server, trial + 1));
+                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d", serverName, trial + 1));
                 }
             }
 
@@ -100,14 +109,8 @@ public class ServerNode {
         }
     }
 
-    private void listenForIncomingMessages() throws IOException {
-        var tokenizer = new StringTokenizer(this.name, ":");
-        var ipAddress = InetAddress.getByName(tokenizer.nextToken());
-        var portNumber = Integer.parseInt(tokenizer.nextToken());
-        var serverSocket = new ServerSocket(portNumber, 100, ipAddress);
+    private void listenForIncomingMessages(ServerSocket serverSocket) throws IOException {
         Socket incomingSocket;
-
-        Logger.log(String.format("Starting to listen on (%s)...", this.name));
 
         while (true) {
             incomingSocket = serverSocket.accept();
@@ -165,21 +168,24 @@ public class ServerNode {
                     commandsQueue.add(receivedMessage);
 
                     var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, "");
-                    sendMessage(socket, responseMessage.toString());
+                    var serverSocket = serverSockets.get(receivedMessage.getSenderName());
+                    sendMessage(serverSocket, responseMessage.toString(), true);
+                }
+                else if (receivedMessage.getType() == Message.MessageType.WriteAcquireResponse) {
+                    commandsQueue.add(receivedMessage);
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteReleaseRequest) {
                     // assume a server only triggers a single write acquire request at a time
                     // since if it wants to monopolize the critical session it can just prolong its occupation on the session instead
-                    commandsQueue.removeIf(m -> m.getType() == Message.MessageType.WriteAcquireRequest && m.getSenderName().equals(receivedMessage.getSenderName()));
+                    commandsQueue.removeIf(m ->
+                            m.getSenderName().equals(receivedMessage.getSenderName()) &&
+                            m.getTimeStamp() < receivedMessage.getTimeStamp());
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteSyncRequest) {
                     // append to file directly since this message type can only occur when 1 and only 1 server process in critical session
                     var fileName = receivedMessage.getFileNameFromPayload();
                     var lineToAppend = receivedMessage.getDataFromPayload();
                     appendToFile(fileName, lineToAppend);
-                }
-                else if (receivedMessage.getType() == Message.MessageType.WriteAcquireResponse) {
-                    commandsQueue.add(receivedMessage);
                 }
             }
             catch (Exception e) {
@@ -214,18 +220,10 @@ public class ServerNode {
                     commandsQueue.add(writeAcquireRequest);
 
                     for (Socket serverSocket : serverSockets.values()) {
-                        sendMessage(serverSocket, writeAcquireRequest.toString());
+                        sendMessage(serverSocket, writeAcquireRequest.toString(), true);
                     }
 
                     processCriticalSession(writeAcquireRequest);
-
-                    incrementLocalTime();
-
-                    var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
-
-                    for (Socket serverSocket : serverSockets.values()) {
-                        sendMessage(serverSocket, writeReleaseRequest.toString());
-                    }
 
                     incrementLocalTime();
 
@@ -237,7 +235,7 @@ public class ServerNode {
                     responseMessage = new Message(this.name, Message.MessageType.WriteFailureResponse, localTime, "");
                 }
 
-                sendMessage(socket, responseMessage.toString());
+                sendMessage(socket, responseMessage.toString(), false);
             }
             catch (Exception e) {
                 communicationOn = false;
@@ -254,10 +252,10 @@ public class ServerNode {
         return socketType.toLowerCase().startsWith("server");
     }
 
-    private void sendMessage(Socket socket, String message) throws IOException {
-        Logger.log(String.format("Sending '%s' to %s (%s:%d)",
-                message, (serverSockets.containsValue(socket)) ? "server" : "client",
-                socket.getInetAddress(), socket.getPort()));
+    private void sendMessage(Socket socket, String message, boolean toServer) throws IOException {
+        Logger.log(String.format("Sending '%s' to %s (%s:%d:%d)",
+                message, toServer ? "server" : "client",
+                socket.getInetAddress(), socket.getPort(), socket.getLocalPort()));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
@@ -271,15 +269,34 @@ public class ServerNode {
         localTime = Math.max(localTime, messageTimeStamp + TIME_DIFFERENCE_BETWEEN_PROCESSES);
     }
 
-    private synchronized boolean isLocalWriteRequestFirstInQueue(Message message) {
+    private synchronized boolean isMessageFirstInQueue(Message message) {
+        if (commandsQueue.isEmpty()) {
+            return true;
+        }
+
         var top = commandsQueue.peek();
-        return top != null && top.getSenderName().equals(this.name);
+
+        return top.getSenderName().equals(message.getSenderName()) &&
+                top.getTimeStamp() == message.getTimeStamp();
     }
 
-    private synchronized void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
+    private boolean isAllConfirmToAllowEnterCriticalSession(Message writeAcquireRequest) {
+        var allSendersAfterWriteRequest = commandsQueue
+                .stream()
+                .filter(message -> message.getTimeStamp() > writeAcquireRequest.getTimeStamp())
+                .map(Message::getSenderName)
+                .distinct()
+                .toArray(String[]::new);
+
+        System.out.println("All sender after write acquire request = " + String.join(", ", allSendersAfterWriteRequest));
+
+        return allSendersAfterWriteRequest.length == serverSockets.size();
+    }
+
+    private void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
         Logger.log("Checking allowance to proceed to critical session...");
 
-        while (!isLocalWriteRequestFirstInQueue(writeAcquireRequest)) {
+        while (!isMessageFirstInQueue(writeAcquireRequest) || !isAllConfirmToAllowEnterCriticalSession(writeAcquireRequest)) {
             Logger.log("Waiting for critical session access...");
             Thread.sleep(100);
         }
@@ -291,12 +308,25 @@ public class ServerNode {
 
         appendToFile(fileName, lineToAppend);
 
+        incrementLocalTime();
+
         var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
+
         for (var serverSocket : serverSockets.values()) {
-            sendMessage(serverSocket, writeSyncRequest.toString());
+            sendMessage(serverSocket, writeSyncRequest.toString(), true);
         }
 
-        commandsQueue.remove(writeAcquireRequest);
+        // since current writeSyncRequest must be the highest timestamped message in the queue, can remove anything less than that
+        commandsQueue.removeIf(m -> m.compareTo(writeSyncRequest) < 0);
+
+        incrementLocalTime();
+
+        // notify all others to release mutex
+        var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
+
+        for (Socket serverSocket : serverSockets.values()) {
+            sendMessage(serverSocket, writeReleaseRequest.toString(), true);
+        }
 
         Logger.log("Going out of critical session access");
     }
