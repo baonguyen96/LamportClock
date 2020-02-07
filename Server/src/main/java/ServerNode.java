@@ -18,6 +18,7 @@ public class ServerNode {
     private PriorityQueue<Message> commandsQueue;
     private Hashtable<String, Socket> serverSockets;
     private ArrayList<String> otherServers;
+    private Logger logger = new Logger(Logger.LogLevel.Debug);
 
     public ServerNode(String name, ArrayList<String> otherServers, String directoryPath) throws IOException {
         this.localTime = 0;
@@ -27,12 +28,12 @@ public class ServerNode {
         this.serverSockets = new Hashtable<>();
         this.commandsQueue = new PriorityQueue<>();
 
-        Logger.log(String.format("Clean up directory '%s'", directoryPath));
+        logger.debug(String.format("Clean up directory '%s'", directoryPath));
         FileUtil.truncateAllFilesInDirectory(directoryPath);
     }
 
     public void up() throws IOException {
-        Logger.log(String.format("Starting to listen on (%s)...", this.name));
+        logger.debug(String.format("Starting to listen on (%s)...", this.name));
 
         var tokenizer = new StringTokenizer(this.name, ":");
         var ipAddress = InetAddress.getByName(tokenizer.nextToken());
@@ -62,7 +63,7 @@ public class ServerNode {
 
     private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
         if (servers == null || servers.size() == 0 || (servers.size() == 1 && servers.get(0).isEmpty())) {
-            Logger.log("No servers found to connect to");
+            logger.debug("No servers found to connect to");
             return;
         }
 
@@ -72,7 +73,7 @@ public class ServerNode {
                     continue;
                 }
 
-                Logger.log(String.format("Trying to connect to (%s)...", serverName));
+                logger.debug(String.format("Trying to connect to (%s)...", serverName));
 
                 try {
                     var tokenizer = new StringTokenizer(serverName, ":");
@@ -82,10 +83,10 @@ public class ServerNode {
                     sendMessage(socket, String.format("Server %s", this.name), true);
                     serverSockets.put(serverName, socket);
 
-                    Logger.log(String.format("Successfully connected to (%s)", serverName));
+                    logger.debug(String.format("Successfully connected to (%s)", serverName));
                 }
                 catch (IOException ignored) {
-                    Logger.log(String.format("Error trying to connect to (%s) - attempt %d", serverName, trial + 1));
+                    logger.debug(String.format("Error trying to connect to (%s) - attempt %d", serverName, trial + 1));
                 }
             }
 
@@ -98,14 +99,14 @@ public class ServerNode {
         }
 
         if (serverSockets.size() == 0) {
-            Logger.log("Cannot connect to any other servers");
+            logger.debug("Cannot connect to any other servers");
         }
         else if (serverSockets.size() < servers.size()) {
             var successfulServers = String.join(", ", serverSockets.keySet());
-            Logger.log(String.format("Successfully connect to %s server(s): (%s)", serverSockets.size(), successfulServers));
+            logger.debug(String.format("Successfully connect to %s server(s): (%s)", serverSockets.size(), successfulServers));
         }
         else {
-            Logger.log("Successfully connect to all server(s)");
+            logger.debug("Successfully connect to all server(s)");
         }
     }
 
@@ -117,10 +118,10 @@ public class ServerNode {
             var finalSocket = incomingSocket;
             var name = String.format("%s:%s", incomingSocket.getInetAddress(), incomingSocket.getPort());
 
-            Logger.log("New request received : " + incomingSocket);
+            logger.debug("New request received : " + incomingSocket);
 
             if (isServerSocket(finalSocket)) {
-                Logger.log(String.format("Handling server communication with (%s)", name));
+                logger.debug(String.format("Handling server communication with (%s)", name));
 
                 var thread = new Thread(() -> {
                     try {
@@ -134,7 +135,7 @@ public class ServerNode {
                 thread.start();
             }
             else {
-                Logger.log(String.format("Handling client communication with (%s)", name));
+                logger.debug(String.format("Handling client communication with (%s)", name));
 
                 var thread = new Thread(() -> {
                     try {
@@ -159,7 +160,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                Logger.log(String.format("Receiving '%s' from server (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                logger.debug(String.format("Receiving '%s' from server (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -206,7 +207,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                Logger.log(String.format("Receiving '%s' from client (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                logger.debug(String.format("Receiving '%s' from client (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -222,6 +223,12 @@ public class ServerNode {
                     for (Socket serverSocket : serverSockets.values()) {
                         sendMessage(serverSocket, writeAcquireRequest.toString(), true);
                     }
+
+                    // don't process this request if still have the old one on the queue
+//                    while() {
+//                        Logger.log("Waiting for previous request to clear out...");
+//                        Thread.sleep(100);
+//                    }
 
                     processCriticalSession(writeAcquireRequest);
 
@@ -253,7 +260,7 @@ public class ServerNode {
     }
 
     private void sendMessage(Socket socket, String message, boolean toServer) throws IOException {
-        Logger.log(String.format("Sending '%s' to %s (%s:%d:%d)",
+        logger.debug(String.format("Sending '%s' to %s (%s:%d:%d)",
                 message, toServer ? "server" : "client",
                 socket.getInetAddress(), socket.getPort(), socket.getLocalPort()));
 
@@ -269,12 +276,17 @@ public class ServerNode {
         localTime = Math.max(localTime, messageTimeStamp + TIME_DIFFERENCE_BETWEEN_PROCESSES);
     }
 
-    private synchronized boolean isMessageFirstInQueue(Message message) {
+    private boolean isMessageFirstInQueue(Message message) {
+        logger.debug("Queue size = " + commandsQueue.size());
+
         if (commandsQueue.isEmpty()) {
             return true;
         }
 
         var top = commandsQueue.peek();
+
+        logger.debug("Top = " + top.toString());
+        logger.debug("Message = " + message.toString());
 
         return top.getSenderName().equals(message.getSenderName()) &&
                 top.getTimeStamp() == message.getTimeStamp();
@@ -288,20 +300,20 @@ public class ServerNode {
                 .distinct()
                 .toArray(String[]::new);
 
-        System.out.println("All sender after write acquire request = " + String.join(", ", allSendersAfterWriteRequest));
+        logger.debug("All senders after request = " + String.join(", ", allSendersAfterWriteRequest));
 
-        return allSendersAfterWriteRequest.length == serverSockets.size();
+        return allSendersAfterWriteRequest.length >= serverSockets.size();
     }
 
     private void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
-        Logger.log("Checking allowance to proceed to critical session...");
+        logger.debug(String.format("Checking allowance to proceed to critical session for message %s...", writeAcquireRequest.toString()));
 
         while (!isMessageFirstInQueue(writeAcquireRequest) || !isAllConfirmToAllowEnterCriticalSession(writeAcquireRequest)) {
-            Logger.log("Waiting for critical session access...");
+            logger.debug("Waiting for critical session access...");
             Thread.sleep(100);
         }
 
-        Logger.log("Going into critical session...");
+        logger.debug("Going into critical session...");
 
         var fileName = writeAcquireRequest.getFileNameFromPayload();
         var lineToAppend = writeAcquireRequest.getDataFromPayload();
@@ -317,7 +329,11 @@ public class ServerNode {
         }
 
         // since current writeSyncRequest must be the highest timestamped message in the queue, can remove anything less than that
+        logger.debug("Queue size = " + commandsQueue.size());
+
         commandsQueue.removeIf(m -> m.compareTo(writeSyncRequest) < 0);
+
+        logger.debug("Queue size = " + commandsQueue.size());
 
         incrementLocalTime();
 
@@ -328,13 +344,15 @@ public class ServerNode {
             sendMessage(serverSocket, writeReleaseRequest.toString(), true);
         }
 
-        Logger.log("Going out of critical session access");
+        incrementLocalTime();
+
+        logger.debug("Going out of critical session access");
     }
 
     private synchronized void appendToFile(String fileName, String message) throws IOException {
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
 
-        Logger.log(String.format("Appending '%s' to file '%s'", message, filePath));
+        logger.debug(String.format("Appending '%s' to file '%s'", message, filePath));
 
         FileUtil.appendToFile(String.valueOf(filePath), message);
     }
