@@ -1,3 +1,4 @@
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Scanner;
@@ -7,10 +8,11 @@ public class Client {
     public static void main(String[] args){
         try {
             String name;
-            ArrayList<String> servers;
-            var scanner = new Scanner(System.in);
+            var servers = new ArrayList<String>();
 
             if(args == null || args.length == 0) {
+                var scanner = new Scanner(System.in);
+
                 System.out.print("Name: ");
                 name = scanner.nextLine();
 
@@ -26,8 +28,9 @@ public class Client {
                 }
             }
             else {
-                name = args[0];
-                servers = Arrays.stream(args).skip(1).collect(Collectors.toCollection(ArrayList::new));
+                var scanner = new Scanner(new File(args[0]));
+                name = scanner.nextLine();
+                servers = new ArrayList<>(Arrays.asList(scanner.nextLine().split(" ")));
             }
 
             var clientNode = new ClientNode(name, servers);

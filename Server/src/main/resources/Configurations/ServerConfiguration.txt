@@ -1,0 +1,3 @@
+Path/To/Directory/Containing/Files/To/Append/
+CurrentIP:CurrentPort
+PeerServerIP:PeerServerPort PeerServerIP:PeerServerPort

@@ -107,7 +107,7 @@ public class ServerNode {
         var serverSocket = new ServerSocket(portNumber, 100, ipAddress);
         Socket incomingSocket;
 
-        Logger.log(String.format("Listening on (%s)...", this.name));
+        Logger.log(String.format("Starting to listen on (%s)...", this.name));
 
         while (true) {
             incomingSocket = serverSocket.accept();
@@ -117,7 +117,7 @@ public class ServerNode {
             Logger.log("New request received : " + incomingSocket);
 
             if (isServerSocket(finalSocket)) {
-                Logger.log(String.format("Handle server communication with (%s)", name));
+                Logger.log(String.format("Handling server communication with (%s)", name));
 
                 var thread = new Thread(() -> {
                     try {
@@ -131,7 +131,7 @@ public class ServerNode {
                 thread.start();
             }
             else {
-                Logger.log(String.format("Handle client communication with (%s)", name));
+                Logger.log(String.format("Handling client communication with (%s)", name));
 
                 var thread = new Thread(() -> {
                     try {
@@ -219,19 +219,23 @@ public class ServerNode {
 
                     processCriticalSession(writeAcquireRequest);
 
+                    incrementLocalTime();
+
                     var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
 
                     for (Socket serverSocket : serverSockets.values()) {
                         sendMessage(serverSocket, writeReleaseRequest.toString());
                     }
 
+                    incrementLocalTime();
+
                     responseMessage = new Message(this.name, Message.MessageType.WriteCompleteResponse, localTime, "");
                 }
                 else {
+                    incrementLocalTime();
+
                     responseMessage = new Message(this.name, Message.MessageType.WriteFailureResponse, localTime, "");
                 }
-
-                incrementLocalTime();
 
                 sendMessage(socket, responseMessage.toString());
             }
@@ -251,7 +255,9 @@ public class ServerNode {
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
-        Logger.log(String.format("Sending '%s' to (%s:%d)", message, socket.getInetAddress(), socket.getPort()));
+        Logger.log(String.format("Sending '%s' to %s (%s:%d)",
+                message, (serverSockets.containsValue(socket)) ? "server" : "client",
+                socket.getInetAddress(), socket.getPort()));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);

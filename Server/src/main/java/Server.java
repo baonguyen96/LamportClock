@@ -1,3 +1,4 @@
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Scanner;
@@ -9,9 +10,10 @@ public class Server {
             String directoryPath;
             String ipPort;
             ArrayList<String> otherServers;
-            var scanner = new Scanner(System.in);
 
             if (args == null || args.length == 0) {
+                var scanner = new Scanner(System.in);
+
                 System.out.print("Directory: ");
                 directoryPath = scanner.nextLine();
 
@@ -30,9 +32,10 @@ public class Server {
                 }
             }
             else {
-                directoryPath = args[0];
-                ipPort = args[1];
-                otherServers = Arrays.stream(args).skip(2).collect(Collectors.toCollection(ArrayList::new));
+                var scanner = new Scanner(new File(args[0]));
+                directoryPath = scanner.nextLine();
+                ipPort = scanner.nextLine();
+                otherServers = new ArrayList<>(Arrays.asList(scanner.nextLine().split(" ")));
             }
 
             var serverNode = new ServerNode(ipPort, otherServers, directoryPath);
