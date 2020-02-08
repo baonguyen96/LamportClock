@@ -20,7 +20,7 @@ public class ServerNode {
     private PriorityQueue<Message> commandsQueue;
     private Hashtable<String, Socket> serverSockets;
     private ArrayList<String> otherServers;
-    private Logger logger = new Logger(Logger.LogLevel.Debug);
+    private Logger logger = new Logger(Logger.LogLevel.Release);
 
     public ServerNode(String name, ArrayList<String> otherServers, String directoryPath) throws IOException {
         this.localTime = 0;
@@ -35,7 +35,7 @@ public class ServerNode {
     }
 
     public void up() throws IOException {
-        logger.debug(String.format("Starting to listen on (%s)...", this.name));
+        logger.log(String.format("Starting to listen on (%s)...", this.name));
 
         var tokenizer = new StringTokenizer(this.name, ":");
         var ipAddress = InetAddress.getByName(tokenizer.nextToken());
@@ -118,12 +118,11 @@ public class ServerNode {
         while (true) {
             incomingSocket = serverSocket.accept();
             var finalSocket = incomingSocket;
-            var name = String.format("%s:%s", incomingSocket.getInetAddress(), incomingSocket.getPort());
 
             logger.debug("New request received : " + incomingSocket);
 
             if (isServerSocket(finalSocket)) {
-                logger.debug(String.format("Handling server communication with (%s)", name));
+                logger.debug(String.format("Handling server communication with '%s'", finalSocket));
 
                 var thread = new Thread(() -> {
                     try {
@@ -137,7 +136,7 @@ public class ServerNode {
                 thread.start();
             }
             else {
-                logger.debug(String.format("Handling client communication with (%s)", name));
+                logger.debug(String.format("Handling client communication with '%s'", finalSocket));
 
                 var thread = new Thread(() -> {
                     try {
@@ -162,7 +161,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.debug(String.format("Receiving '%s' from server (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                logger.log(String.format("Receiving '%s' from server '%s'", receivedMessageString, socket));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -209,7 +208,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.debug(String.format("Receiving '%s' from client (%s:%d)", receivedMessageString, socket.getInetAddress(), socket.getPort()));
+                logger.log(String.format("Receiving '%s' from client '%s'", receivedMessageString, socket));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -251,14 +250,11 @@ public class ServerNode {
     private boolean isServerSocket(Socket socket) throws IOException {
         var dis = new DataInputStream(socket.getInputStream());
         var socketType = dis.readUTF();
-
         return socketType.toLowerCase().startsWith("server");
     }
 
     private void sendMessage(Socket socket, String message, boolean toServer) throws IOException {
-        logger.debug(String.format("Sending '%s' to %s (%s:%d:%d)",
-                message, toServer ? "server" : "client",
-                socket.getInetAddress(), socket.getPort(), socket.getLocalPort()));
+        logger.log(String.format("Sending '%s' to %s '%s'", message, toServer ? "server" : "client", socket));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
@@ -289,7 +285,7 @@ public class ServerNode {
         var removingMessages = commandsQueue.stream().filter(filter).collect(Collectors.toList());
 
         for(var message : removingMessages) {
-            logger.debug(String.format("Removing '%s' to the queue", message.toString()));
+            logger.debug(String.format("Removing '%s' from the queue", message.toString()));
         }
 
         commandsQueue.removeAll(removingMessages);
@@ -306,8 +302,8 @@ public class ServerNode {
 
         var top = commandsQueue.peek();
 
-        logger.debug("Top = " + top.toString());
-        logger.debug("Message = " + message.toString());
+        logger.debug("Top of queue = " + top.toString());
+        logger.debug("Current message = " + message.toString());
 
         return top.getSenderName().equals(message.getSenderName()) &&
                 top.getTimeStamp() == message.getTimeStamp();
@@ -327,7 +323,7 @@ public class ServerNode {
     }
 
     private void processCriticalSession(Message writeAcquireRequest) throws InterruptedException, IOException {
-        logger.debug(String.format("Checking allowance to proceed to critical session for message %s...", writeAcquireRequest.toString()));
+        logger.debug(String.format("Checking allowance to proceed to critical session for message '%s'...", writeAcquireRequest.toString()));
 
         while (!isMessageFirstInQueue(writeAcquireRequest) || !isAllConfirmToAllowEnterCriticalSession(writeAcquireRequest)) {
             logger.debug("Waiting for critical session access...");
@@ -370,7 +366,7 @@ public class ServerNode {
     private synchronized void appendToFile(String fileName, String message) throws IOException {
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
 
-        logger.debug(String.format("Appending '%s' to file '%s'", message, filePath));
+        logger.log(String.format("Appending '%s' to file '%s'", message, filePath));
 
         FileUtil.appendToFile(String.valueOf(filePath), message);
     }

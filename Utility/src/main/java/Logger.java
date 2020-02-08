@@ -17,13 +17,12 @@ public class Logger {
 
     public void debug(String message) {
         if (level == LogLevel.Debug) {
-            var now = new Date(System.currentTimeMillis());
-            System.out.print(String.format("%s - %s\n", dateTimeFormat.format(now), message));
+            log(message);
         }
     }
 
-    public void log(String sender, String receiver, Message message) {
+    public void log(String message) {
         var now = new Date(System.currentTimeMillis());
-        System.out.print(String.format("> %s at time %s\n", message, dateTimeFormat.format(now)));
+        System.out.print(String.format("%s - %s\n", dateTimeFormat.format(now), message));
     }
 }

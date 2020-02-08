@@ -13,7 +13,7 @@ public class ClientNode {
     private int localTime;
     private String name;
     private Hashtable<String, Socket> serverSockets;
-    private Logger logger = new Logger(Logger.LogLevel.Debug);
+    private Logger logger = new Logger(Logger.LogLevel.Release);
 
     public ClientNode(String name, ArrayList<String> servers) throws IOException {
         this.name = name;
@@ -29,12 +29,13 @@ public class ClientNode {
             var serverPort = Integer.parseInt(tokenizer.nextToken());
             var socket = new Socket(serverIp, serverPort);
             serverSockets.put(server, socket);
+
             sendMessage(socket,String.format("Client %s", this.name));
         }
     }
 
     public void up() throws IOException, InterruptedException {
-        logger.debug(String.format("Client %s is up", this.name));
+        logger.log(String.format("Client %s is up", this.name));
 
         var random = new Random();
         String message;
@@ -46,16 +47,13 @@ public class ClientNode {
             serverNumber = random.nextInt(serverSockets.size());
             serverName = (String) serverSockets.keySet().toArray()[serverNumber];
             fileNumber = random.nextInt(4) + 1;
-
-            message = String.format("File%d.txt|%s sends message %d to server %s to append to file %s",
-                    fileNumber, this.name, i, serverName, fileNumber);
+            message = String.format("File%d.txt|%s sends message #%d to server %s", fileNumber, this.name, i, serverName);
 
             requestWrite(serverName, message);
-
             Thread.sleep(random.nextInt(1000));
         }
 
-        logger.debug(String.format("Client %s gracefully exits", this.name));
+        logger.log(String.format("Client '%s' gracefully exits", this.name));
     }
 
     private void requestWrite(String server, String messagePayload) throws IOException {
@@ -70,14 +68,14 @@ public class ClientNode {
         var responseMessageText = dis.readUTF();
         var responseMessage = new Message(responseMessageText);
 
-        logger.debug(String.format("Receiving '%s' from server (%s:%d)", responseMessageText, socket.getInetAddress(), socket.getPort()));
+        logger.log(String.format("Receiving '%s' from server '%s'", responseMessageText, socket));
 
         setLocalTime(responseMessage.getTimeStamp());
         incrementLocalTime();
     }
 
     private void sendMessage(Socket socket, String message) throws IOException {
-        logger.debug(String.format("Sending '%s' to server (%s:%d)...", message, socket.getInetAddress(), socket.getPort()));
+        logger.log(String.format("Sending '%s' to server '%s'...", message, socket));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
