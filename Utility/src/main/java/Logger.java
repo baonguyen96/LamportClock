@@ -22,7 +22,7 @@ public class Logger {
         }
     }
 
-    public void log(String message) {
+    public void log(String sender, String receiver, Message message) {
         var now = new Date(System.currentTimeMillis());
         System.out.print(String.format("> %s at time %s\n", message, dateTimeFormat.format(now)));
     }

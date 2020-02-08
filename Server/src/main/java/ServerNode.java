@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.PriorityQueue;
 import java.util.StringTokenizer;
+import java.util.function.Predicate;
 
 public class ServerNode {
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
@@ -166,21 +167,21 @@ public class ServerNode {
                 incrementLocalTime();
 
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
-                    commandsQueue.add(receivedMessage);
+                    addToQueue(receivedMessage);
 
                     var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, "");
                     var serverSocket = serverSockets.get(receivedMessage.getSenderName());
                     sendMessage(serverSocket, responseMessage.toString(), true);
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteAcquireResponse) {
-                    commandsQueue.add(receivedMessage);
+                    addToQueue(receivedMessage);
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteReleaseRequest) {
-                    // assume a server only triggers a single write acquire request at a time
-                    // since if it wants to monopolize the critical session it can just prolong its occupation on the session instead
-                    commandsQueue.removeIf(m ->
+                    // only remove the WriteAcquireRequest counterpart
+                    removeFromQueue(m ->
                             m.getSenderName().equals(receivedMessage.getSenderName()) &&
-                            m.getTimeStamp() < receivedMessage.getTimeStamp());
+                                    m.getType() == Message.MessageType.WriteAcquireRequest &&
+                                    m.getTimeStamp() < receivedMessage.getTimeStamp());
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteSyncRequest) {
                     // append to file directly since this message type can only occur when 1 and only 1 server process in critical session
@@ -218,17 +219,11 @@ public class ServerNode {
 
                 if (FileUtil.exists(String.valueOf(fullPath))) {
                     var writeAcquireRequest = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
-                    commandsQueue.add(writeAcquireRequest);
+                    addToQueue(writeAcquireRequest);
 
                     for (Socket serverSocket : serverSockets.values()) {
                         sendMessage(serverSocket, writeAcquireRequest.toString(), true);
                     }
-
-                    // don't process this request if still have the old one on the queue
-//                    while() {
-//                        Logger.log("Waiting for previous request to clear out...");
-//                        Thread.sleep(100);
-//                    }
 
                     processCriticalSession(writeAcquireRequest);
 
@@ -274,6 +269,23 @@ public class ServerNode {
 
     private synchronized void setLocalTime(int messageTimeStamp) {
         localTime = Math.max(localTime, messageTimeStamp + TIME_DIFFERENCE_BETWEEN_PROCESSES);
+    }
+
+    private synchronized void addToQueue(Message message) {
+        logger.debug("Queue size before add = " + commandsQueue.size());
+
+        commandsQueue.add(message);
+
+        logger.debug("Queue size after add = " + commandsQueue.size());
+    }
+
+
+    private synchronized void removeFromQueue(Predicate<Message> filter) {
+        logger.debug("Queue size before remove = " + commandsQueue.size());
+
+        commandsQueue.removeIf(filter);
+
+        logger.debug("Queue size after remove = " + commandsQueue.size());
     }
 
     private boolean isMessageFirstInQueue(Message message) {
@@ -329,11 +341,7 @@ public class ServerNode {
         }
 
         // since current writeSyncRequest must be the highest timestamped message in the queue, can remove anything less than that
-        logger.debug("Queue size = " + commandsQueue.size());
-
-        commandsQueue.removeIf(m -> m.compareTo(writeSyncRequest) < 0);
-
-        logger.debug("Queue size = " + commandsQueue.size());
+        removeFromQueue(m -> m.compareTo(writeSyncRequest) < 0);
 
         incrementLocalTime();
 

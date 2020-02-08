@@ -7,28 +7,38 @@ import java.util.stream.Collectors;
 public class Client {
     public static void main(String[] args){
         try {
-            String name;
+            String name = "Client0";
             var servers = new ArrayList<String>();
+            String configurationFile;
 
             if(args == null || args.length == 0) {
                 var scanner = new Scanner(System.in);
 
-                System.out.print("Name: ");
-                name = scanner.nextLine();
+                System.out.print("Configuration file (leave blank if not exist): ");
+                configurationFile = scanner.nextLine();
 
-                System.out.print("Servers ((IP:Port) tuples separated by space): ");
-                var serversInput = scanner.nextLine().split(" ");
-                servers = Arrays.stream(serversInput).collect(Collectors.toCollection(ArrayList::new));
+                if(configurationFile.trim().isEmpty()) {
+                    System.out.print("Name: ");
+                    name = scanner.nextLine();
 
-                System.out.print("Start client [y/n]: ");
-                var confirmation = scanner.nextLine();
+                    System.out.print("Servers ((IP:Port) tuples separated by space): ");
+                    var serversInput = scanner.nextLine().split(" ");
+                    servers = Arrays.stream(serversInput).collect(Collectors.toCollection(ArrayList::new));
 
-                if (!confirmation.toLowerCase().startsWith("y")) {
-                    return;
+                    System.out.print("Start client [y/n]: ");
+                    var confirmation = scanner.nextLine();
+
+                    if (!confirmation.toLowerCase().startsWith("y")) {
+                        return;
+                    }
                 }
             }
             else {
-                var scanner = new Scanner(new File(args[0]));
+                configurationFile = args[0];
+            }
+
+            if(!configurationFile.isEmpty()) {
+                var scanner = new Scanner(new File(configurationFile));
                 name = scanner.nextLine();
                 servers = new ArrayList<>(Arrays.asList(scanner.nextLine().split(" ")));
             }
