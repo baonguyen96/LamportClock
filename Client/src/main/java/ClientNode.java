@@ -59,10 +59,10 @@ public class ClientNode {
     }
 
     private void requestWrite(String server, String messagePayload) throws IOException {
+        incrementLocalTime();
+
         var socket = serverSockets.get(server);
         var message = new Message(this.name, Message.MessageType.ClientWriteRequest, localTime, messagePayload);
-
-        incrementLocalTime();
 
         sendMessage(socket, message.toString());
 

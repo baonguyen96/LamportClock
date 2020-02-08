@@ -10,6 +10,7 @@ import java.util.Hashtable;
 import java.util.PriorityQueue;
 import java.util.StringTokenizer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class ServerNode {
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
@@ -169,7 +170,7 @@ public class ServerNode {
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
                     addToQueue(receivedMessage);
 
-                    var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, "");
+                    var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, receivedMessage.getPayload());
                     var serverSocket = serverSockets.get(receivedMessage.getSenderName());
                     sendMessage(serverSocket, responseMessage.toString(), true);
                 }
@@ -274,6 +275,8 @@ public class ServerNode {
     private synchronized void addToQueue(Message message) {
         logger.debug("Queue size before add = " + commandsQueue.size());
 
+        logger.debug(String.format("Adding message '%s' to the queue", message.toString()));
+
         commandsQueue.add(message);
 
         logger.debug("Queue size after add = " + commandsQueue.size());
@@ -283,7 +286,13 @@ public class ServerNode {
     private synchronized void removeFromQueue(Predicate<Message> filter) {
         logger.debug("Queue size before remove = " + commandsQueue.size());
 
-        commandsQueue.removeIf(filter);
+        var removingMessages = commandsQueue.stream().filter(filter).collect(Collectors.toList());
+
+        for(var message : removingMessages) {
+            logger.debug(String.format("Removing '%s' to the queue", message.toString()));
+        }
+
+        commandsQueue.removeAll(removingMessages);
 
         logger.debug("Queue size after remove = " + commandsQueue.size());
     }
@@ -340,8 +349,9 @@ public class ServerNode {
             sendMessage(serverSocket, writeSyncRequest.toString(), true);
         }
 
-        // since current writeSyncRequest must be the highest timestamped message in the queue, can remove anything less than that
-        removeFromQueue(m -> m.compareTo(writeSyncRequest) < 0);
+        // since current writeSyncRequest must be the highest timestamped message in the queue for the current payload,
+        // therefore can remove any message for this payload with lesser timestamp
+        removeFromQueue(m -> m.compareTo(writeSyncRequest) < 0 && m.getPayload().equals(writeSyncRequest.getPayload()));
 
         incrementLocalTime();
 
