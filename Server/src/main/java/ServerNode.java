@@ -8,39 +8,34 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.PriorityQueue;
-import java.util.StringTokenizer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ServerNode {
     private final int TIME_DIFFERENCE_BETWEEN_PROCESSES = 1;
     private int localTime;
-    private String name;
+    private ServerInfo info;
     private String directoryPath;
     private PriorityQueue<Message> commandsQueue;
     private Hashtable<String, Socket> serverSockets;
-    private ArrayList<String> otherServers;
+    private ArrayList<ServerInfo> otherServers;
     private Logger logger = new Logger(Logger.LogLevel.Release);
 
-    public ServerNode(String name, ArrayList<String> otherServers, String directoryPath) throws IOException {
+    public ServerNode(ServerInfo serverInfo, ArrayList<ServerInfo> otherServerInfos, String directoryPath) throws IOException {
         this.localTime = 0;
-        this.name = name;
+        this.info = serverInfo;
         this.directoryPath = directoryPath;
-        this.otherServers = otherServers;
+        this.otherServers = otherServerInfos;
         this.serverSockets = new Hashtable<>();
         this.commandsQueue = new PriorityQueue<>();
 
-        logger.debug(String.format("Clean up directory '%s'", directoryPath));
         FileUtil.truncateAllFilesInDirectory(directoryPath);
     }
 
     public void up() throws IOException {
-        logger.log(String.format("Starting to listen on (%s)...", this.name));
+        logger.log(String.format("%s starts listening on (%s:%d)...", this.info.getName(), this.info.getIpAddress(), this.info.getPort()));
 
-        var tokenizer = new StringTokenizer(this.name, ":");
-        var ipAddress = InetAddress.getByName(tokenizer.nextToken());
-        var portNumber = Integer.parseInt(tokenizer.nextToken());
-        var serverSocket = new ServerSocket(portNumber, 100, ipAddress);
+        var serverSocket = new ServerSocket(this.info.getPort(), 100, InetAddress.getByName(this.info.getIpAddress()));
 
         var listenThread = new Thread(() -> {
             try {
@@ -54,7 +49,7 @@ public class ServerNode {
 
         var linkToOtherServersThread = new Thread(() -> {
             try {
-                populateServerSockets(otherServers);
+                populateServerSockets();
             }
             catch (InterruptedException e) {
                 e.printStackTrace();
@@ -63,36 +58,33 @@ public class ServerNode {
         linkToOtherServersThread.start();
     }
 
-    private void populateServerSockets(ArrayList<String> servers) throws InterruptedException {
-        if (servers == null || servers.size() == 0 || (servers.size() == 1 && servers.get(0).isEmpty())) {
+    private void populateServerSockets() throws InterruptedException {
+        if (this.otherServers.isEmpty()) {
             logger.debug("No servers found to connect to");
             return;
         }
 
         for (var trial = 0; trial < 5; trial++) {
-            for (var serverName : servers) {
-                if (serverSockets.containsKey(serverName)) {
+            for (var otherServer : this.otherServers) {
+                if (serverSockets.containsKey(otherServer.getName())) {
                     continue;
                 }
 
-                logger.debug(String.format("Trying to connect to (%s)...", serverName));
+                logger.debug(String.format("%s tries to connect to %s...", this.info.getName(), otherServer));
 
                 try {
-                    var tokenizer = new StringTokenizer(serverName, ":");
-                    var serverIp = InetAddress.getByName(tokenizer.nextToken());
-                    var serverPort = Integer.parseInt(tokenizer.nextToken());
-                    var socket = new Socket(serverIp, serverPort);
-                    sendMessage(socket, String.format("Server %s", this.name), true);
-                    serverSockets.put(serverName, socket);
+                    var socket = new Socket(otherServer.getIpAddress(), otherServer.getPort());
+                    sendMessage(socket, String.format("Server %s", this.info.getName()), true);
+                    serverSockets.put(otherServer.getName(), socket);
 
-                    logger.debug(String.format("Successfully connected to (%s)", serverName));
+                    logger.debug(String.format("%s successfully connects to %s", this.info.getName(), otherServer));
                 }
                 catch (IOException ignored) {
-                    logger.debug(String.format("Error trying to connect to (%s) - attempt %d", serverName, trial + 1));
+                    logger.debug(String.format("%s fails to connect to %s - attempt %d", this.info.getName(), otherServer, trial + 1));
                 }
             }
 
-            if (serverSockets.keySet().size() == servers.size()) {
+            if (serverSockets.keySet().size() == otherServers.size()) {
                 break;
             }
             else {
@@ -101,14 +93,15 @@ public class ServerNode {
         }
 
         if (serverSockets.size() == 0) {
-            logger.debug("Cannot connect to any other servers");
+            logger.debug(String.format("%s cannot connect to any other servers", this.info.getName()));
         }
-        else if (serverSockets.size() < servers.size()) {
+        else if (serverSockets.size() < otherServers.size()) {
             var successfulServers = String.join(", ", serverSockets.keySet());
-            logger.debug(String.format("Successfully connect to %s server(s): (%s)", serverSockets.size(), successfulServers));
+            logger.debug(String.format("%s successfully connects to %s server(s): (%s)",
+                    this.info.getName(), serverSockets.size(), successfulServers));
         }
         else {
-            logger.debug("Successfully connect to all server(s)");
+            logger.debug(String.format("%s connect to all server(s)", this.info.getName()));
         }
     }
 
@@ -119,11 +112,9 @@ public class ServerNode {
             incomingSocket = serverSocket.accept();
             var finalSocket = incomingSocket;
 
-            logger.debug("New request received : " + incomingSocket);
+            logger.debug(String.format("%s receives new request from %s", this.info.getName(), incomingSocket));
 
             if (isServerSocket(finalSocket)) {
-                logger.debug(String.format("Handling server communication with '%s'", finalSocket));
-
                 var thread = new Thread(() -> {
                     try {
                         handleServerServerCommunication(finalSocket);
@@ -136,8 +127,6 @@ public class ServerNode {
                 thread.start();
             }
             else {
-                logger.debug(String.format("Handling client communication with '%s'", finalSocket));
-
                 var thread = new Thread(() -> {
                     try {
                         handleClientServerCommunication(finalSocket);
@@ -161,7 +150,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.log(String.format("Receiving '%s' from server '%s'", receivedMessageString, socket));
+                logger.log(String.format("%s receives '%s' from server %s", this.info.getName(), receivedMessageString, socket));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -169,7 +158,7 @@ public class ServerNode {
                 if (receivedMessage.getType() == Message.MessageType.WriteAcquireRequest) {
                     addToQueue(receivedMessage);
 
-                    var responseMessage = new Message(this.name, Message.MessageType.WriteAcquireResponse, localTime, receivedMessage.getPayload());
+                    var responseMessage = new Message(this.info.getName(), Message.MessageType.WriteAcquireResponse, localTime, receivedMessage.getPayload());
                     var serverSocket = serverSockets.get(receivedMessage.getSenderName());
                     sendMessage(serverSocket, responseMessage.toString(), true);
                 }
@@ -208,7 +197,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.log(String.format("Receiving '%s' from client '%s'", receivedMessageString, socket));
+                logger.log(String.format("%s receives '%s' from client %s", this.info.getName(), receivedMessageString, socket));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -218,7 +207,7 @@ public class ServerNode {
                 Message responseMessage;
 
                 if (FileUtil.exists(String.valueOf(fullPath))) {
-                    var writeAcquireRequest = new Message(this.name, Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
+                    var writeAcquireRequest = new Message(this.info.getName(), Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
                     addToQueue(writeAcquireRequest);
 
                     for (Socket serverSocket : serverSockets.values()) {
@@ -229,12 +218,12 @@ public class ServerNode {
 
                     incrementLocalTime();
 
-                    responseMessage = new Message(this.name, Message.MessageType.WriteCompleteResponse, localTime, "");
+                    responseMessage = new Message(this.info.getName(), Message.MessageType.WriteSuccessAck, localTime, "");
                 }
                 else {
                     incrementLocalTime();
 
-                    responseMessage = new Message(this.name, Message.MessageType.WriteFailureResponse, localTime, "");
+                    responseMessage = new Message(this.info.getName(), Message.MessageType.WriteFailureAck, localTime, "");
                 }
 
                 sendMessage(socket, responseMessage.toString(), false);
@@ -254,7 +243,7 @@ public class ServerNode {
     }
 
     private void sendMessage(Socket socket, String message, boolean toServer) throws IOException {
-        logger.log(String.format("Sending '%s' to %s '%s'", message, toServer ? "server" : "client", socket));
+        logger.log(String.format("%s sends '%s' to %s %s", this.info.getName(), message, toServer ? "server" : "client", socket));
 
         var dos = new DataOutputStream(socket.getOutputStream());
         dos.writeUTF(message);
@@ -269,9 +258,8 @@ public class ServerNode {
     }
 
     private synchronized void addToQueue(Message message) {
-        logger.debug("Queue size before add = " + commandsQueue.size());
-
         logger.debug(String.format("Adding message '%s' to the queue", message.toString()));
+        logger.debug("Queue size before add = " + commandsQueue.size());
 
         commandsQueue.add(message);
 
@@ -280,10 +268,10 @@ public class ServerNode {
 
 
     private synchronized void removeFromQueue(Predicate<Message> filter) {
+        logger.debug("Removing messages off the queue");
         logger.debug("Queue size before remove = " + commandsQueue.size());
 
         var removingMessages = commandsQueue.stream().filter(filter).collect(Collectors.toList());
-
         for(var message : removingMessages) {
             logger.debug(String.format("Removing '%s' from the queue", message.toString()));
         }
@@ -294,8 +282,6 @@ public class ServerNode {
     }
 
     private boolean isMessageFirstInQueue(Message message) {
-        logger.debug("Queue size = " + commandsQueue.size());
-
         if (commandsQueue.isEmpty()) {
             return true;
         }
@@ -339,7 +325,7 @@ public class ServerNode {
 
         incrementLocalTime();
 
-        var writeSyncRequest = new Message(this.name, Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
+        var writeSyncRequest = new Message(this.info.getName(), Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
 
         for (var serverSocket : serverSockets.values()) {
             sendMessage(serverSocket, writeSyncRequest.toString(), true);
@@ -352,7 +338,7 @@ public class ServerNode {
         incrementLocalTime();
 
         // notify all others to release mutex
-        var writeReleaseRequest = new Message(this.name, Message.MessageType.WriteReleaseRequest, localTime, "");
+        var writeReleaseRequest = new Message(this.info.getName(), Message.MessageType.WriteReleaseRequest, localTime, "");
 
         for (Socket serverSocket : serverSockets.values()) {
             sendMessage(serverSocket, writeReleaseRequest.toString(), true);
@@ -366,7 +352,7 @@ public class ServerNode {
     private synchronized void appendToFile(String fileName, String message) throws IOException {
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
 
-        logger.log(String.format("Appending '%s' to file '%s'", message, filePath));
+        logger.log(String.format("%s appends '%s' to file %s", this.info.getName(), message, filePath));
 
         FileUtil.appendToFile(String.valueOf(filePath), message);
     }

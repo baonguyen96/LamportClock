@@ -1,2 +1,2 @@
 ClientName
-ServerIP:ServerPort ServerIP:ServerPort
+ServerName:ServerIP:ServerPort|ServerName:ServerIP:ServerPort

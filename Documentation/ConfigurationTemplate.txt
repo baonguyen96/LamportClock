@@ -1,0 +1,74 @@
+
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Configurations\Server1Configuration.txt
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Configurations\Server2Configuration.txt
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Configurations\Server3Configuration.txt
+
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Client\src\main\resources\Configurations\Client0Configuration.txt
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Client\src\main\resources\Configurations\Client1Configuration.txt
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Client\src\main\resources\Configurations\Client2Configuration.txt
+
+
+
+-----------------------------------------------
+-- no name
+-----------------------------------------------
+
+-- server
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server1
+localhost:1788
+localhost:1789 localhost:1790
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server2
+localhost:1789
+localhost:1788 localhost:1790
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server3
+localhost:1790
+localhost:1788 localhost:1789
+
+
+-- client
+
+client 0
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790
+
+client 1
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790
+
+client 2
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790
+
+
+
+-----------------------------------------------
+-- with name
+-----------------------------------------------
+
+-- server
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server1
+server 1:localhost:1788
+server 2:localhost:1789|server 3:localhost:1790
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server2
+server 2:localhost:1789
+server 1:localhost:1788|server 3:localhost:1790
+
+D:\Bao\Codes\Java\CS6378\Project1\LamportClock\Server\src\main\resources\Server3
+server 3:localhost:1790
+server 1:localhost:1788|server 2:localhost:1789
+
+
+-- client
+
+client 0
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790
+
+client 1
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790
+
+client 2
+server 1:localhost:1788|server 2:localhost:1789|server 3:localhost:1790

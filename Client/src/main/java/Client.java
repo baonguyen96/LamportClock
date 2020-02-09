@@ -1,14 +1,12 @@
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 public class Client {
     public static void main(String[] args){
         try {
             String name = "Client0";
-            var servers = new ArrayList<String>();
+            var servers = new ArrayList<ServerInfo>();
             String configurationFile;
 
             if(args == null || args.length == 0) {
@@ -21,9 +19,11 @@ public class Client {
                     System.out.print("Name: ");
                     name = scanner.nextLine();
 
-                    System.out.print("Servers ((IP:Port) tuples separated by space): ");
-                    var serversInput = scanner.nextLine().split(" ");
-                    servers = Arrays.stream(serversInput).collect(Collectors.toCollection(ArrayList::new));
+                    System.out.print("Servers ((Name:IP:Port) tuples separated by pipe): ");
+                    var serversInput = scanner.nextLine().split("\\|");
+                    for(var input : serversInput) {
+                        servers.add(new ServerInfo(input));
+                    }
 
                     System.out.print("Start client [y/n]: ");
                     var confirmation = scanner.nextLine();
@@ -40,7 +40,11 @@ public class Client {
             if(!configurationFile.isEmpty()) {
                 var scanner = new Scanner(new File(configurationFile));
                 name = scanner.nextLine();
-                servers = new ArrayList<>(Arrays.asList(scanner.nextLine().split(" ")));
+
+                var serversInput = scanner.nextLine().split("\\|");
+                for(var input : serversInput) {
+                    servers.add(new ServerInfo(input));
+                }
             }
 
             var clientNode = new ClientNode(name, servers);
