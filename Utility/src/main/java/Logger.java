@@ -23,6 +23,6 @@ public class Logger {
 
     public void log(String message) {
         var now = new Date(System.currentTimeMillis());
-        System.out.print(String.format("> %s - %s\n", dateTimeFormat.format(now), message));
+        System.out.println(String.format("> %s at time: %s", message, dateTimeFormat.format(now)));
     }
 }
