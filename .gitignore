@@ -8,9 +8,7 @@
 /AOS_Project_1.pdf
 */target/*
 /Utility/target/*
-/Client/src/main/resources/Configurations/Client[0-9]Configuration.txt
-/Server/src/main/resources/Configurations/Server[0-9]Configuration.txt
 /*Output.docx
 /Documentation/BugOutput.docx
 /Documentation/OutputFormat.txt
-/Documentation/AOS_Project_1.pdf
+/*.jar

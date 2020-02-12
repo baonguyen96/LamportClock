@@ -150,7 +150,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.log(String.format("%s receives '%s' from server %s", this.info.getName(), receivedMessageString, socket));
+                logger.log(String.format("%s receives '%s' from %s", this.info.getName(), receivedMessageString, receivedMessage.getSenderName()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -197,7 +197,7 @@ public class ServerNode {
                 var receivedMessageString = dis.readUTF();
                 var receivedMessage = new Message(receivedMessageString);
 
-                logger.log(String.format("%s receives '%s' from client %s", this.info.getName(), receivedMessageString, socket));
+                logger.log(String.format("%s receives '%s' from %s", this.info.getName(), receivedMessageString, receivedMessage.getSenderName()));
 
                 setLocalTime(receivedMessage.getTimeStamp());
                 incrementLocalTime();
@@ -242,11 +242,18 @@ public class ServerNode {
         return socketType.toLowerCase().startsWith("server");
     }
 
-    private void sendMessage(Socket socket, String message, boolean toServer) throws IOException {
-        logger.log(String.format("%s sends '%s' to %s %s", this.info.getName(), message, toServer ? "server" : "client", socket));
+    private void sendMessage(Socket socket, String messageText, boolean toServer) throws IOException {
+        logger.log(String.format("%s sends '%s' to %s %s", this.info.getName(), messageText, toServer ? "server" : "client", socket));
 
         var dos = new DataOutputStream(socket.getOutputStream());
-        dos.writeUTF(message);
+        dos.writeUTF(messageText);
+    }
+
+    private void sendMessage(Socket socket, String messageText, String recipientName) throws IOException {
+        logger.log(String.format("%s sends '%s' to %s", this.info.getName(), messageText, recipientName));
+
+        var dos = new DataOutputStream(socket.getOutputStream());
+        dos.writeUTF(messageText);
     }
 
     private synchronized void incrementLocalTime() {
@@ -352,7 +359,7 @@ public class ServerNode {
     private synchronized void appendToFile(String fileName, String message) throws IOException {
         var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
 
-        logger.log(String.format("%s appends '%s' to file %s", this.info.getName(), message, filePath));
+        logger.log(String.format("%s appends '%s' to file %s", this.info.getName(), message, fileName));
 
         FileUtil.appendToFile(String.valueOf(filePath), message);
     }

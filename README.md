@@ -35,8 +35,8 @@ mvn package
 
 #### Statically
 
-1. Create configuration file for `Server` following [this format](./Server/src/main/resources/Configurations/ServerConfiguration.txt) with line 1 as the file directory, line 2 as server's IP address and port number, line 3 as list of other servers' IP addresses and ports separated by space
-2. Create configuration file for `Client` following [this format](./Client/src/main/resources/Configurations/ClientConfiguration.txt) with line 1 as the client name, line 2 as list of other servers' IP addresses and ports separated by space
+1. Create configuration file for each `Server` instance following [this format](./Server/src/main/resources/Configurations/ServerConfiguration.txt) with: line 1 as the file directory; line 2 as server's IP name, address, and port number; line 3 as list of other servers' names, IP addresses, and ports separated by pipe
+2. Create configuration file for each `Client` instance following [this format](./Client/src/main/resources/Configurations/ClientConfiguration.txt) with: line 1 as the client name; line 2 as list of other servers' names, IP addresses, and ports separated by pipe
 3. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Server/target/` directory and `Path` is the full path to the server's configuration file created above at the same time
 4. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Client/target/` directory and `Path` is the full path to the client's configuration file created above at the same time
  
