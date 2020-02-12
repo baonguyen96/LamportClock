@@ -65,10 +65,6 @@ public class Message implements Comparable<Message> {
         return payload.substring(payload.indexOf('|') + 1);
     }
 
-    public static boolean isValid(String messageText) {
-        return messageText.chars().filter(c -> c == '|').count() >= 3;
-    }
-
     @Override
     public int compareTo(Message o) {
         var result = Integer.compare(this.timeStamp, o.timeStamp);

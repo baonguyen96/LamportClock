@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Implementation of Lamport's clock. Assume no transport failure.
+Implement a distributed file replication system. Assuming no transport failure. More information on the problem [here](./Documentation/AOS_Project_1.pdf).
 
 ## Requirements
 
@@ -39,4 +39,12 @@ mvn package
 2. Create configuration file for each `Client` instance following [this format](./Client/src/main/resources/Configurations/ClientConfiguration.txt) with: line 1 as the client name; line 2 as list of other servers' names, IP addresses, and ports separated by pipe
 3. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Server/target/` directory and `Path` is the full path to the server's configuration file created above at the same time
 4. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Client/target/` directory and `Path` is the full path to the client's configuration file created above at the same time
- 
+
+#### Local Simulator (Windows only)
+
+A set of automated PowerShell scripts are provided to automatically run all servers and clients on a local machine to test. Follow these steps to run:
+
+1. Go to [Scripts](./Scripts) directory using PowerShell
+2. Run `./Build-Local.ps1` to build the entire project
+3. Run `./Start-Local-Server.ps1` to start all (3) server instances
+4. Run `./Start-Local-Client.ps1` to start all (5) client instances

@@ -1,5 +1,6 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -29,6 +30,7 @@ public class ServerNode {
         this.serverSockets = new Hashtable<>();
         this.commandsQueue = new PriorityQueue<>();
 
+        logger.debug(String.format("Truncate directories '%s' (absolute path = '%s')", directoryPath, new File(directoryPath).getAbsolutePath()));
         FileUtil.truncateAllFilesInDirectory(directoryPath);
     }
 
@@ -74,7 +76,7 @@ public class ServerNode {
 
                 try {
                     var socket = new Socket(otherServer.getIpAddress(), otherServer.getPort());
-                    sendMessage(socket, String.format("Server %s", this.info.getName()), true);
+                    sendMessage(socket, String.format("Server %s", this.info.getName()), otherServer.getName());
                     serverSockets.put(otherServer.getName(), socket);
 
                     logger.debug(String.format("%s successfully connects to %s", this.info.getName(), otherServer));
@@ -160,7 +162,7 @@ public class ServerNode {
 
                     var responseMessage = new Message(this.info.getName(), Message.MessageType.WriteAcquireResponse, localTime, receivedMessage.getPayload());
                     var serverSocket = serverSockets.get(receivedMessage.getSenderName());
-                    sendMessage(serverSocket, responseMessage.toString(), true);
+                    sendMessage(serverSocket, responseMessage.toString(), receivedMessage.getSenderName());
                 }
                 else if (receivedMessage.getType() == Message.MessageType.WriteAcquireResponse) {
                     addToQueue(receivedMessage);
@@ -210,9 +212,7 @@ public class ServerNode {
                     var writeAcquireRequest = new Message(this.info.getName(), Message.MessageType.WriteAcquireRequest, localTime, receivedMessage.getPayload());
                     addToQueue(writeAcquireRequest);
 
-                    for (Socket serverSocket : serverSockets.values()) {
-                        sendMessage(serverSocket, writeAcquireRequest.toString(), true);
-                    }
+                    notifyAllServers(writeAcquireRequest);
 
                     processCriticalSession(writeAcquireRequest);
 
@@ -226,7 +226,7 @@ public class ServerNode {
                     responseMessage = new Message(this.info.getName(), Message.MessageType.WriteFailureAck, localTime, "");
                 }
 
-                sendMessage(socket, responseMessage.toString(), false);
+                sendMessage(socket, responseMessage.toString(), receivedMessage.getSenderName());
             }
             catch (Exception e) {
                 communicationOn = false;
@@ -240,13 +240,6 @@ public class ServerNode {
         var dis = new DataInputStream(socket.getInputStream());
         var socketType = dis.readUTF();
         return socketType.toLowerCase().startsWith("server");
-    }
-
-    private void sendMessage(Socket socket, String messageText, boolean toServer) throws IOException {
-        logger.log(String.format("%s sends '%s' to %s %s", this.info.getName(), messageText, toServer ? "server" : "client", socket));
-
-        var dos = new DataOutputStream(socket.getOutputStream());
-        dos.writeUTF(messageText);
     }
 
     private void sendMessage(Socket socket, String messageText, String recipientName) throws IOException {
@@ -327,40 +320,35 @@ public class ServerNode {
 
         var fileName = writeAcquireRequest.getFileNameFromPayload();
         var lineToAppend = writeAcquireRequest.getDataFromPayload();
-
         appendToFile(fileName, lineToAppend);
-
         incrementLocalTime();
 
         var writeSyncRequest = new Message(this.info.getName(), Message.MessageType.WriteSyncRequest, localTime, writeAcquireRequest.getPayload());
-
-        for (var serverSocket : serverSockets.values()) {
-            sendMessage(serverSocket, writeSyncRequest.toString(), true);
-        }
+        notifyAllServers(writeSyncRequest);
 
         // since current writeSyncRequest must be the highest timestamped message in the queue for the current payload,
         // therefore can remove any message for this payload with lesser timestamp
         removeFromQueue(m -> m.compareTo(writeSyncRequest) < 0 && m.getPayload().equals(writeSyncRequest.getPayload()));
-
         incrementLocalTime();
 
-        // notify all others to release mutex
         var writeReleaseRequest = new Message(this.info.getName(), Message.MessageType.WriteReleaseRequest, localTime, "");
-
-        for (Socket serverSocket : serverSockets.values()) {
-            sendMessage(serverSocket, writeReleaseRequest.toString(), true);
-        }
-
+        notifyAllServers(writeReleaseRequest);
         incrementLocalTime();
 
         logger.debug("Going out of critical session access");
     }
 
-    private synchronized void appendToFile(String fileName, String message) throws IOException {
-        var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
+    private void notifyAllServers(Message message) throws IOException {
+        for(var serverName : serverSockets.keySet()) {
+            var serverSocket = serverSockets.get(serverName);
+            sendMessage(serverSocket, message.toString(), serverName);
+        }
+    }
 
+    private synchronized void appendToFile(String fileName, String message) throws IOException {
         logger.log(String.format("%s appends '%s' to file %s", this.info.getName(), message, fileName));
 
+        var filePath = Paths.get(directoryPath, fileName).toAbsolutePath();
         FileUtil.appendToFile(String.valueOf(filePath), message);
     }
 }
