@@ -6,17 +6,23 @@ Implement a distributed file replication system. Assuming no transport failure. 
 
 ## Requirements
 
+**System requirements:**
+
 1. Java 10 or higher
 2. JDK 10 or higher
 3. JRE 1.8 or higher
 4. Maven
 5. Windows 10 and/or Ubuntu LTS 18.4 (tested)
 
+**Files requirements:**
+
+1. Each server's directory that stores the files to be written to by the Clients must be in this format: `File#.txt` (i.e. `File1.txt`, `File2.txt`, etc.) as samples [here](./Server/src/main/resources/Server1/)
+
 ## How to run
 
 ### Build
 
-1. Run the following command from the [root](.) directory:
+1. Run the following command from the [root](#) directory:
 ```
 mvn clean install -U
 mvn package
