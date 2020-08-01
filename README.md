@@ -46,7 +46,7 @@ mvn package
 3. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Server/target/` directory and `Path` is the full path to the server's configuration file created above at the same time
 4. Run `java -jar Name.jar Path` where `Name` is the rest of the jar file name in the `Client/target/` directory and `Path` is the full path to the client's configuration file created above at the same time
 
-#### Local Simulator (Windows only)
+#### Local Simulator
 
 A set of automated PowerShell scripts are provided to automatically run all servers and clients on a local machine to test. Follow these steps to run:
 
@@ -54,3 +54,9 @@ A set of automated PowerShell scripts are provided to automatically run all serv
 2. Run `./Build-Local.ps1` to build the entire project
 3. Run `./Start-Local-Server.ps1` to start all (3) server instances
 4. Run `./Start-Local-Client.ps1` to start all (5) client instances
+
+For UNIX-related system, run the corresponding `.sh` scripts instead. Note that you may need to reformat those files to make them UNIX-compatible using the below command:
+```
+sudo apt install dos2unix
+dos2unix *.sh
+```
